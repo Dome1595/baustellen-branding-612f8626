@@ -211,6 +211,8 @@ async function editMockupWithLogo(
 - Logo must maintain perfect quality and clarity
 - Colors must be vibrant, accurate, and professionally rendered
 - Final result must look like premium professional vinyl graphics/wrapping
+- MATTE LAMINATE finish: polarizing filter look, NO specular highlights on glyphs/letters
+- Respect vehicle seams: split decals at panel gaps; avoid spanning over deep recesses
 
 **STEP-BY-STEP BRANDING INSTRUCTIONS:**
 
@@ -220,46 +222,58 @@ async function editMockupWithLogo(
    - Place logo prominently on the vehicle/surface (upper left or center area)
    - Size: Logo should be clearly visible but proportional (15-20% of branding area)
    - Ensure logo has perfect clarity and sharp edges
+   - CRITICAL: Respect panel seams - split logo across gaps if necessary
 
 2. COMPANY NAME:
    - Text: "${brandData.companyName}"
    - Font: BOLD, EXTRA LARGE, ultra-professional sans-serif typeface
-   - Color: EXACT color ${brandData.primaryColor} (apply precisely)
+   - Color: Use DARKER NAVY shade of ${brandData.primaryColor} for better contrast
+   - Add thin white outline (1-2mm) for enhanced readability
    - Position: Next to or below logo as main focal point
    - Size: 2-3x larger than slogan - this is the PRIMARY element
    - Quality: Text must be RAZOR SHARP with perfect anti-aliasing
+   - Baseline: MUST BE PARALLEL to the sliding-door track; check alignment against door seam
 
 3. SLOGAN:
    - Text: "${brandData.slogan}"
    - Font: Professional complementary font, medium weight
    - Color: ${brandData.secondaryColor} or subtle variant of primary
    - Position: Directly below company name with proper spacing
-   - Size: Medium - clearly readable from distance
+   - Size: Medium - clearly readable from distance (increase if too small)
    - Quality: SHARP and perfectly legible
+   - Baseline: MUST BE PARALLEL to vehicle panel lines
 
 4. CONTACT INFORMATION:
    - Text: ${brandData.contact}
    - Font: Clean, professional, highly readable
    - Color: ${brandData.primaryColor} or contrasting color for visibility
    - Position: Lower area or bottom right of branding space
-   - Size: Smaller but still easily readable
+   - Size: Make LARGER if current size appears too small - prioritize readability
+   - Content: Use clear separators "|" with adequate spacing - DO NOT make text too dense
    - Quality: Sharp and clear
+   - Baseline: PARALLEL to vehicle structure
 
 5. DESIGN STYLE:
    - Overall aesthetic: ${styleDescription}
    - Layout: Professional, balanced, with proper white space
    - Hierarchy: Logo + Company Name (primary) → Slogan (secondary) → Contact (tertiary)
-   - Colors: Use ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
+   - Colors: Use darker navy version of ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
    - Integration: Make branding look like real vinyl wrap/decals with subtle shadows and reflections matching the vehicle surface
+   - Surface finish: MATTE laminate appearance - no glossy highlights on text
 
 6. QUALITY ASSURANCE:
-   - Text rendering: ULTRA SHARP - no blur, no pixelation
+   - Text rendering: ULTRA SHARP - no blur, no pixelation, MATTE finish
    - Logo quality: PRISTINE - maintain original resolution and clarity
-   - Color accuracy: EXACT match to specified hex colors
+   - Color accuracy: EXACT match to specified hex colors (use darker navy variants)
+   - Contrast: Ensure sufficient contrast with 1-2mm white outline on dark text
    - Professional finish: Must look like $5000+ professional vehicle wrap job
-   - Realism: Subtle reflections, proper shadows, vinyl texture where appropriate
+   - Realism: Subtle reflections, proper shadows, vinyl texture with MATTE laminate look
+   - Seam respect: Split graphics at panel gaps, avoid deep recesses
+   - Alignment: ALL baselines parallel to sliding-door track and door seams
+   - Gloss control: NO specular highlights on letters/glyphs - matte finish only
+   - Scale: Increase font sizes if elements appear too small or cramped
 
-FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, and professionally executed.`
+FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, professionally executed with matte finish and proper seam handling.`
       : `PROFESSIONAL VEHICLE/CONSTRUCTION BRANDING - HIGH QUALITY MOCKUP EDITING
 
 **CRITICAL QUALITY REQUIREMENTS:**
@@ -267,55 +281,70 @@ FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that
 - ALL text must be CRYSTAL CLEAR, perfectly sharp, and 100% readable
 - Colors must be vibrant, accurate, and professionally rendered
 - Final result must look like premium professional vinyl graphics/wrapping
+- MATTE LAMINATE finish: polarizing filter look, NO specular highlights on glyphs/letters
+- Respect vehicle seams: split decals at panel gaps; avoid spanning over deep recesses
 
 **STEP-BY-STEP BRANDING INSTRUCTIONS:**
 
 1. LOGO CREATION:
    - Create a simple, professional logo icon/symbol representing construction/trades
    - Style: Clean, modern, and memorable
-   - Color: Use ${brandData.primaryColor}
+   - Color: Use darker navy shade of ${brandData.primaryColor}
    - Position: Upper left or center area of branding space
    - Size: Prominent but proportional (15-20% of branding area)
    - Quality: SHARP vector-style clarity
+   - CRITICAL: Respect panel seams - split logo across gaps if necessary
 
 2. COMPANY NAME:
    - Text: "${brandData.companyName}"
    - Font: BOLD, EXTRA LARGE, ultra-professional sans-serif typeface
-   - Color: EXACT color ${brandData.primaryColor} (apply precisely)
+   - Color: Use DARKER NAVY shade of ${brandData.primaryColor} for better contrast
+   - Add thin white outline (1-2mm) for enhanced readability
    - Position: Next to or below logo as main focal point
    - Size: 2-3x larger than slogan - this is the PRIMARY element
    - Quality: Text must be RAZOR SHARP with perfect anti-aliasing
+   - Baseline: MUST BE PARALLEL to the sliding-door track; check alignment against door seam
 
 3. SLOGAN:
    - Text: "${brandData.slogan}"
    - Font: Professional complementary font, medium weight
    - Color: ${brandData.secondaryColor} or subtle variant of primary
    - Position: Directly below company name with proper spacing
-   - Size: Medium - clearly readable from distance
+   - Size: Medium - clearly readable from distance (increase if too small)
    - Quality: SHARP and perfectly legible
+   - Baseline: MUST BE PARALLEL to vehicle panel lines
 
 4. CONTACT INFORMATION:
    - Text: ${brandData.contact}
    - Font: Clean, professional, highly readable
    - Color: ${brandData.primaryColor} or contrasting color for visibility
    - Position: Lower area or bottom right of branding space
-   - Size: Smaller but still easily readable
+   - Size: Make LARGER if current size appears too small - prioritize readability
+   - Content: Use clear separators "|" with adequate spacing - DO NOT make text too dense
    - Quality: Sharp and clear
+   - Baseline: PARALLEL to vehicle structure
 
 5. DESIGN STYLE:
    - Overall aesthetic: ${styleDescription}
    - Layout: Professional, balanced, with proper white space
    - Hierarchy: Logo + Company Name (primary) → Slogan (secondary) → Contact (tertiary)
-   - Colors: Use ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
+   - Colors: Use darker navy version of ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
    - Integration: Make branding look like real vinyl wrap/decals with subtle shadows and reflections
+   - Surface finish: MATTE laminate appearance - no glossy highlights on text
 
 6. QUALITY ASSURANCE:
-   - Text rendering: ULTRA SHARP - no blur, no pixelation
-   - Color accuracy: EXACT match to specified hex colors
+   - Text rendering: ULTRA SHARP - no blur, no pixelation, MATTE finish
+   - Color accuracy: EXACT match to specified hex colors (use darker navy variants)
+   - Contrast: Ensure sufficient contrast with 1-2mm white outline on dark text
    - Professional finish: Must look like $5000+ professional vehicle wrap job
-   - Realism: Subtle reflections, proper shadows, vinyl texture where appropriate
+   - Realism: Subtle reflections, proper shadows, vinyl texture with MATTE laminate look
+   - Seam respect: Split graphics at panel gaps, avoid deep recesses
+   - Alignment: ALL baselines parallel to sliding-door track and door seams
+   - Gloss control: NO specular highlights on letters/glyphs - matte finish only
+   - Scale: Increase font sizes if elements appear too small or cramped
 
-FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, and professionally executed.`;
+FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, professionally executed with matte finish and proper seam handling.`;
+
 
     // Call Lovable AI Gateway with image editing
     const messages: any[] = [
