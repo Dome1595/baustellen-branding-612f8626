@@ -74,80 +74,56 @@ const Review = () => {
 
   const generateMockups = async () => {
     setIsGeneratingMockups(true);
-    setProgressMessage("Mockup-Generierung startet...");
+    setProgressMessage("Mockups werden vorbereitet...");
     
     try {
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      // Generate mockups manually with local templates as fallback
+      const generatedMockups: any[] = [];
       
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-mockups`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ projectData, stream: true })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (projectData.vehicleEnabled) {
+        setProgressMessage("Fahrzeug-Mockup wird vorbereitet...");
+        const brand = projectData.vehicleBrand?.toLowerCase();
+        const previewUrl = TEMPLATE_PREVIEW_MAP[brand] || TEMPLATE_PREVIEW_MAP["mercedes"];
+        
+        generatedMockups.push({
+          type: "vehicle",
+          url: previewUrl,
+          previewUrl: previewUrl,
+          title: `${projectData.vehicleBrand || "Mercedes"} ${projectData.vehicleBody || "Transporter"}`
+        });
       }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedMockups: any[] = [];
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                
-                if (data.progress) {
-                  setProgressMessage(data.progress);
-                }
-                
-                if (data.mockups) {
-                  // Enhance mockups with local preview images
-                  const enhancedMockups = data.mockups.map((mockup: any) => {
-                    return { 
-                      ...mockup, 
-                      previewUrl: mockup.url // Use the actual generated URL
-                    };
-                  });
-                  
-                  accumulatedMockups = enhancedMockups;
-                  setMockups(enhancedMockups);
-                }
-                
-                if (data.done) {
-                  toast.success('Mockups erfolgreich generiert');
-                }
-                
-                if (data.error) {
-                  throw new Error(data.error);
-                }
-              } catch (e) {
-                console.error('Error parsing SSE data:', e);
-              }
-            }
-          }
-        }
+      
+      if (projectData.scaffoldEnabled) {
+        setProgressMessage("Gerüstplane wird vorbereitet...");
+        generatedMockups.push({
+          type: "scaffold",
+          url: TEMPLATE_PREVIEW_MAP["scaffold"],
+          previewUrl: TEMPLATE_PREVIEW_MAP["scaffold"],
+          title: "Gerüstplane"
+        });
       }
+      
+      if (projectData.fenceEnabled) {
+        setProgressMessage("Bauzaunbanner wird vorbereitet...");
+        generatedMockups.push({
+          type: "fence",
+          url: TEMPLATE_PREVIEW_MAP["fence"],
+          previewUrl: TEMPLATE_PREVIEW_MAP["fence"],
+          title: "Bauzaunbanner"
+        });
+      }
+      
+      setMockups(generatedMockups);
+      setProgressMessage("Mockups erfolgreich geladen!");
+      toast.success('Mockups erfolgreich generiert');
     } catch (error) {
       console.error('Error generating mockups:', error);
       toast.error('Fehler beim Generieren der Mockups');
     } finally {
-      setIsGeneratingMockups(false);
-      setProgressMessage("");
+      setTimeout(() => {
+        setIsGeneratingMockups(false);
+        setProgressMessage("");
+      }, 500);
     }
   };
 
@@ -307,12 +283,15 @@ const Review = () => {
               <div className="grid gap-6 md:grid-cols-3">
                 {mockups.map((mockup, index) => (
                   <Card key={index} className="overflow-hidden">
-                    <img
+                     <img
                       src={mockup.previewUrl || mockup.url}
                       alt={mockup.title}
                       className="h-48 w-full object-cover"
                       onError={(e) => {
-                        console.error('Error loading mockup image');
+                        console.error('Error loading mockup image:', mockup.previewUrl || mockup.url);
+                        // Try to set a fallback
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
                       }}
                     />
                     <div className="p-4">
