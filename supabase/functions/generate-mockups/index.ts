@@ -250,7 +250,18 @@ async function editMockupWithLogo(
   }
   const templateBlob = await templateResponse.blob();
   const templateArrayBuffer = await templateBlob.arrayBuffer();
-  const templateBase64 = btoa(String.fromCharCode(...new Uint8Array(templateArrayBuffer)));
+  
+  // Convert to base64 in chunks to avoid stack overflow
+  const uint8Array = new Uint8Array(templateArrayBuffer);
+  const chunkSize = 8192;
+  let binaryString = '';
+  
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+    binaryString += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  
+  const templateBase64 = btoa(binaryString);
   const templateDataUrl = `data:image/png;base64,${templateBase64}`;
   console.log("Template converted to base64 (length:", templateBase64.length, ")");
 
