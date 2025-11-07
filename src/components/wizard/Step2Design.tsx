@@ -138,7 +138,15 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
     }
   };
 
-  const suggestedPalettes = [
+  // Show extracted colors as first option, followed by suggested palettes
+  const extractedPalette = (data.primaryColor && data.secondaryColor && data.accentColor) ? {
+    name: "Erkannte Farben (aus Logo)",
+    primary: data.primaryColor,
+    secondary: data.secondaryColor,
+    accent: data.accentColor,
+  } : null;
+
+  const defaultPalettes = [
     {
       name: "Blau-Grün",
       primary: "#1B4965",
@@ -158,6 +166,10 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
       accent: "#DEF2F1",
     },
   ];
+
+  const suggestedPalettes = extractedPalette 
+    ? [extractedPalette, ...defaultPalettes]
+    : defaultPalettes;
 
   return (
     <div>
