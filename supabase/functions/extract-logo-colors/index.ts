@@ -12,91 +12,66 @@ serve(async (req) => {
 
   try {
     const { logoUrl } = await req.json();
-    const LANGDOCK_API_KEY = Deno.env.get('LANGDOCK_API_KEY');
-    const ASSISTANT_ID = Deno.env.get('LANGDOCK_ASSISTANT_ID_COLORS');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!LANGDOCK_API_KEY || !ASSISTANT_ID) {
-      throw new Error('LANGDOCK_API_KEY or ASSISTANT_ID not configured');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY not configured');
     }
 
     console.log('Extracting colors from logo:', logoUrl);
 
-    // Step 1: Download the image from URL
-    const imageResponse = await fetch(logoUrl);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to download image: ${imageResponse.status}`);
-    }
-    const imageBlob = await imageResponse.blob();
-    
-    // Step 2: Upload to Langdock
-    const formData = new FormData();
-    formData.append('file', imageBlob, 'logo.png');
-    
-    const uploadResponse = await fetch('https://api.langdock.com/attachment/v1/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
-      },
-      body: formData,
-    });
+    const prompt = `Analysiere dieses Logo und extrahiere die 3 Hauptfarben als HEX-Codes.
 
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error('Langdock upload error:', uploadResponse.status, errorText);
-      throw new Error(`Failed to upload to Langdock: ${uploadResponse.status}`);
-    }
-
-    const uploadData = await uploadResponse.json();
-    const attachmentId = uploadData.attachmentId;
-    
-    if (!attachmentId) {
-      throw new Error('No attachmentId returned from upload');
-    }
-
-    console.log('Image uploaded, attachmentId:', attachmentId);
-
-    // Step 3: Use attachmentId in chat completion
-    const prompt = `Analysiere dieses Logo und extrahiere die 3 Hauptfarben. 
-
-Gib die Farben als HEX-Codes zurück im Format:
+Antworte AUSSCHLIESSLICH in diesem exakten Format (keine zusätzlichen Erklärungen):
 PRIMARY: #HEXCODE
 SECONDARY: #HEXCODE
 ACCENT: #HEXCODE
 
 Wähle:
-- PRIMARY: Die dominanteste/wichtigste Farbe im Logo
+- PRIMARY: Die dominanteste/wichtigste Markenfarbe im Logo
 - SECONDARY: Die zweithäufigste oder komplementäre Farbe
 - ACCENT: Eine Akzentfarbe für Highlights
 
-Falls das Logo hauptsächlich schwarz/weiß ist, wähle passende professionelle Farben für ein Handwerksunternehmen.`;
+Falls das Logo hauptsächlich schwarz/weiß ist, wähle passende professionelle Farben für ein Handwerksunternehmen (z.B. Blautöne, Grüntöne).`;
 
-    const response = await fetch('https://api.langdock.com/assistant/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        assistantId: ASSISTANT_ID,
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'user',
-            content: prompt,
-            attachments: [attachmentId]
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: logoUrl } }
+            ]
           }
-        ],
-        stream: false
+        ]
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Langdock API error:', response.status, errorText);
-      throw new Error(`Langdock API error: ${response.status}`);
+      console.error('Lovable AI error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+      if (response.status === 402) {
+        throw new Error('Payment required. Please add credits to your Lovable AI workspace.');
+      }
+      
+      throw new Error(`Color extraction failed: ${response.status}`);
     }
 
     const data = await response.json();
-    const content = data.result[0]?.content || '';
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    console.log('AI response:', content);
     
     // Parse the color codes from the response
     const primaryMatch = content.match(/PRIMARY:\s*(#[0-9A-Fa-f]{6})/);
