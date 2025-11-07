@@ -152,10 +152,16 @@ async function generateImageWithLangdock(
   try {
     console.log('Starting Langdock image generation with assistant:', assistantId);
     
-    // Build prompt with logo reference if provided
-    let fullPrompt = prompt;
+    // Build message content with attachmentIds for logo if provided
+    const messageContent: any = {
+      role: 'user',
+      content: prompt
+    };
+    
+    // If logo is provided, ensure it has https:// prefix
     if (logoUrl) {
-      fullPrompt = `${prompt}\n\nIMPORTANT: The company logo is available at: ${logoUrl}\nPlease incorporate this logo into the mockup design.`;
+      const fullLogoUrl = logoUrl.startsWith('http') ? logoUrl : `https://${logoUrl}`;
+      messageContent.content = `${prompt}\n\nIMPORTANT: Use the company logo from this URL: ${fullLogoUrl}\nIncorporate this logo prominently in the mockup design.`;
     }
 
     // Call Langdock Assistant API
@@ -167,12 +173,7 @@ async function generateImageWithLangdock(
       },
       body: JSON.stringify({
         assistantId: assistantId,
-        messages: [
-          {
-            role: 'user',
-            content: fullPrompt
-          }
-        ],
+        messages: [messageContent],
         stream: false
       }),
     });
@@ -192,40 +193,69 @@ async function generateImageWithLangdock(
     }, null, 2));
 
     // Extract image URL from response
-    // Check result array for image content
+    // Check result array for tool results with generated images
     if (data.result && Array.isArray(data.result)) {
       for (const item of data.result) {
-        // Check for assistant role with image content
-        if (item.role === 'assistant' && Array.isArray(item.content)) {
+        // Check tool results for image generation output
+        if (item.role === 'tool' && Array.isArray(item.content)) {
           for (const contentItem of item.content) {
-            // Look for image_url type
-            if (contentItem.type === 'image_url' && contentItem.image_url?.url) {
-              console.log('Found image URL in assistant content');
-              return contentItem.image_url.url;
-            }
-            // Look for image_file type
-            if (contentItem.type === 'image_file' && contentItem.image_file?.url) {
-              console.log('Found image file URL in assistant content');
-              return contentItem.image_file.url;
-            }
-            // Check if content item has url directly
-            if (contentItem.url && typeof contentItem.url === 'string') {
-              console.log('Found direct URL in content item');
-              return contentItem.url;
+            if (contentItem.toolName === 'image_generation' && contentItem.result) {
+              // Check for output field with image URL
+              if (contentItem.result.output) {
+                console.log('Found image in tool result output');
+                return contentItem.result.output;
+              }
+              // Check for imageUrl field
+              if (contentItem.result.imageUrl) {
+                console.log('Found imageUrl in tool result');
+                return contentItem.result.imageUrl;
+              }
+              // Check for url field
+              if (contentItem.result.url) {
+                console.log('Found url in tool result');
+                return contentItem.result.url;
+              }
+              // Check for images array
+              if (contentItem.result.images && Array.isArray(contentItem.result.images)) {
+                const firstImage = contentItem.result.images[0];
+                if (typeof firstImage === 'string') {
+                  console.log('Found image in images array');
+                  return firstImage;
+                }
+                if (firstImage?.url) {
+                  console.log('Found image URL in images array');
+                  return firstImage.url;
+                }
+              }
+              // Log if there was an error
+              if (contentItem.result.error) {
+                console.error('Image generation error:', contentItem.result.error);
+              }
             }
           }
         }
         
-        // Check tool results for images
-        if (item.role === 'tool' && Array.isArray(item.content)) {
+        // Check for assistant role with string content (direct image URL)
+        if (item.role === 'assistant' && typeof item.content === 'string') {
+          // Check if it's an image URL or base64
+          if (item.content.startsWith('http') || item.content.startsWith('data:image')) {
+            console.log('Found image URL in assistant string content');
+            return item.content;
+          }
+        }
+        
+        // Check for assistant role with array content
+        if (item.role === 'assistant' && Array.isArray(item.content)) {
           for (const contentItem of item.content) {
-            if (contentItem.result?.imageUrl) {
-              console.log('Found image URL in tool result');
-              return contentItem.result.imageUrl;
+            // Look for image_url type
+            if (contentItem.type === 'image_url' && contentItem.image_url?.url) {
+              console.log('Found image URL in assistant array content');
+              return contentItem.image_url.url;
             }
-            if (contentItem.result?.url) {
-              console.log('Found URL in tool result');
-              return contentItem.result.url;
+            // Look for image_file type
+            if (contentItem.type === 'image_file' && contentItem.image_file?.url) {
+              console.log('Found image file URL in assistant array content');
+              return contentItem.image_file.url;
             }
           }
         }
