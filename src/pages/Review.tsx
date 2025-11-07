@@ -7,6 +7,23 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+// Import templates
+import fordTemplate from "@/assets/templates/ford-transporter.png";
+import vwTemplate from "@/assets/templates/vw-transporter.png";
+import mercedesSprinterTemplate from "@/assets/templates/mercedes-sprinter.png";
+import mercedesTransporterTemplate from "@/assets/templates/mercedes-transporter.png";
+import scaffoldTemplate from "@/assets/templates/scaffold-banner.png";
+import fenceTemplate from "@/assets/templates/fence-banner.png";
+
+const TEMPLATES = [
+  { url: fordTemplate, name: "ford-transporter.png" },
+  { url: vwTemplate, name: "vw-transporter.png" },
+  { url: mercedesSprinterTemplate, name: "mercedes-sprinter.png" },
+  { url: mercedesTransporterTemplate, name: "mercedes-transporter.png" },
+  { url: scaffoldTemplate, name: "scaffold-banner.png" },
+  { url: fenceTemplate, name: "fence-banner.png" },
+];
+
 const Review = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -14,6 +31,7 @@ const Review = () => {
   const [mockups, setMockups] = useState<any[]>([]);
   const [isGeneratingMockups, setIsGeneratingMockups] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isUploadingTemplates, setIsUploadingTemplates] = useState(false);
 
   useEffect(() => {
     if (!projectData) {
@@ -22,9 +40,73 @@ const Review = () => {
       return;
     }
 
-    // Generate mockups
-    generateMockups();
+    // Ensure templates are uploaded, then generate mockups
+    ensureTemplatesAndGenerateMockups();
   }, [projectData, navigate]);
+
+  const uploadTemplates = async () => {
+    setIsUploadingTemplates(true);
+    console.log("Checking and uploading templates...");
+
+    try {
+      // Check if templates already exist
+      const { data: existingFiles } = await supabase.storage
+        .from("mockup-templates")
+        .list();
+
+      if (existingFiles && existingFiles.length >= 6) {
+        console.log("Templates already exist, skipping upload");
+        return true;
+      }
+
+      // Upload all templates
+      let successCount = 0;
+      for (const template of TEMPLATES) {
+        try {
+          const response = await fetch(template.url);
+          const blob = await response.blob();
+
+          const { error } = await supabase.storage
+            .from("mockup-templates")
+            .upload(template.name, blob, {
+              contentType: "image/png",
+              upsert: true,
+            });
+
+          if (!error) {
+            successCount++;
+            console.log(`Uploaded ${template.name}`);
+          } else {
+            console.error(`Failed to upload ${template.name}:`, error);
+          }
+        } catch (err) {
+          console.error(`Error uploading ${template.name}:`, err);
+        }
+      }
+
+      if (successCount === TEMPLATES.length) {
+        console.log("All templates uploaded successfully");
+        return true;
+      } else {
+        console.warn(`Only ${successCount}/${TEMPLATES.length} templates uploaded`);
+        return successCount > 0;
+      }
+    } catch (error) {
+      console.error("Error checking/uploading templates:", error);
+      return false;
+    } finally {
+      setIsUploadingTemplates(false);
+    }
+  };
+
+  const ensureTemplatesAndGenerateMockups = async () => {
+    const templatesReady = await uploadTemplates();
+    if (templatesReady) {
+      await generateMockups();
+    } else {
+      toast.error("Fehler beim Upload der Templates. Bitte versuchen Sie es erneut.");
+    }
+  };
 
   const generateMockups = async () => {
     setIsGeneratingMockups(true);
@@ -175,9 +257,15 @@ const Review = () => {
               </Button>
             </div>
 
-            {isGeneratingMockups ? (
-              <div className="flex items-center justify-center py-12">
+            {isUploadingTemplates ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
                 <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                <p className="text-muted-foreground">Templates werden vorbereitet...</p>
+              </div>
+            ) : isGeneratingMockups ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                <p className="text-muted-foreground">Mockups werden generiert...</p>
               </div>
             ) : mockups.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-3">
@@ -216,7 +304,7 @@ const Review = () => {
             <Button 
               size="lg" 
               onClick={handleGeneratePdf}
-              disabled={isGeneratingPdf || isGeneratingMockups}
+              disabled={isGeneratingPdf || isGeneratingMockups || isUploadingTemplates}
             >
               <Download className="mr-2 h-5 w-5" />
               {isGeneratingPdf ? 'PDF wird generiert...' : 'PDF jetzt generieren'}
