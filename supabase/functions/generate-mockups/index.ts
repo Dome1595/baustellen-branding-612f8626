@@ -13,6 +13,9 @@ serve(async (req) => {
   }
 
   try {
+    // Ensure templates are uploaded to Supabase Storage
+    await ensureTemplatesUploaded();
+
     const { projectData } = await req.json();
     console.log("Generating mockups with project data:", projectData);
 
@@ -21,7 +24,7 @@ serve(async (req) => {
     // Generate vehicle mockup if enabled
     if (projectData.vehicle_enabled || projectData.vehicleEnabled) {
       console.log("Generating vehicle mockup...");
-      const templateUrl = selectVehicleTemplate(projectData, req);
+      const templateUrl = selectVehicleTemplate(projectData);
       console.log("Selected vehicle template:", templateUrl);
       
       const vehicleMockupUrl = await editMockupWithLogo(
@@ -50,7 +53,8 @@ serve(async (req) => {
     // Generate scaffold mockup if enabled
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
       console.log("Generating scaffold mockup...");
-      const templateUrl = `${getOriginUrl(req)}/mockup-templates/scaffold-banner.png`;
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
       console.log("Selected scaffold template:", templateUrl);
       
       const scaffoldMockupUrl = await editMockupWithLogo(
@@ -79,7 +83,8 @@ serve(async (req) => {
     // Generate fence mockup if enabled
     if (projectData.fence_enabled || projectData.fenceEnabled) {
       console.log("Generating fence mockup...");
-      const templateUrl = `${getOriginUrl(req)}/mockup-templates/fence-banner.png`;
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
       console.log("Selected fence template:", templateUrl);
       
       const fenceMockupUrl = await editMockupWithLogo(
@@ -128,27 +133,88 @@ function getOriginUrl(req: Request): string {
   return `${url.protocol}//${url.host}`;
 }
 
-function selectVehicleTemplate(projectData: any, req: Request): string {
+// Ensure templates are available in Supabase Storage
+let templatesChecked = false;
+
+async function ensureTemplatesUploaded() {
+  if (templatesChecked) return;
+  
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("Missing Supabase credentials");
+    return;
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  try {
+    // Check if mockup-templates bucket exists
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(b => b.name === "mockup-templates");
+
+    if (!bucketExists) {
+      // Create bucket
+      const { error: bucketError } = await supabase.storage.createBucket("mockup-templates", {
+        public: true,
+        fileSizeLimit: 10485760, // 10MB
+      });
+      
+      if (bucketError) {
+        console.error("Failed to create mockup-templates bucket:", bucketError);
+        return;
+      }
+      console.log("Created mockup-templates bucket");
+    }
+
+    // Check if templates exist
+    const { data: files } = await supabase.storage
+      .from("mockup-templates")
+      .list();
+
+    if (!files || files.length === 0) {
+      console.warn("⚠️ Templates not found in Supabase Storage!");
+      console.warn("Please upload the templates from public/mockup-templates/ to Supabase Storage:");
+      console.warn("1. Go to Lovable Cloud -> Storage -> mockup-templates bucket");
+      console.warn("2. Upload all 6 template files:");
+      console.warn("   - ford-transporter.png");
+      console.warn("   - vw-transporter.png");
+      console.warn("   - mercedes-sprinter.png");
+      console.warn("   - mercedes-transporter.png");
+      console.warn("   - scaffold-banner.png");
+      console.warn("   - fence-banner.png");
+    } else {
+      console.log(`✓ Found ${files.length} templates in Supabase Storage`);
+    }
+
+    templatesChecked = true;
+  } catch (error) {
+    console.error("Error checking templates:", error);
+  }
+}
+
+function selectVehicleTemplate(projectData: any): string {
   const brand = (projectData.vehicle_brand || projectData.vehicleBrand)?.toLowerCase();
   const body = (projectData.vehicle_body || projectData.vehicleBody)?.toLowerCase();
   
-  const baseUrl = getOriginUrl(req);
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   
   if (brand === "ford") {
-    return `${baseUrl}/mockup-templates/ford-transporter.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/ford-transporter.png`;
   }
   if (brand === "vw" || brand === "volkswagen") {
-    return `${baseUrl}/mockup-templates/vw-transporter.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/vw-transporter.png`;
   }
   if (brand === "mercedes") {
     if (body === "sprinter") {
-      return `${baseUrl}/mockup-templates/mercedes-sprinter.png`;
+      return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-sprinter.png`;
     }
-    return `${baseUrl}/mockup-templates/mercedes-transporter.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter.png`;
   }
   
   // Fallback to Mercedes Transporter
-  return `${baseUrl}/mockup-templates/mercedes-transporter.png`;
+  return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter.png`;
 }
 
 async function editMockupWithLogo(
