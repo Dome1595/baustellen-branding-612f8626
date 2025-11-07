@@ -262,22 +262,33 @@ async function generateImageWithLangdock(
                   const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
                   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
                   
-                  const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/mockups/${fileName}`, {
-                    method: 'POST',
-                    headers: {
-                      'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                      'Content-Type': 'image/png',
-                    },
-                    body: bytes,
-                  });
-                  
-                  if (uploadResponse.ok) {
-                    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/mockups/${fileName}`;
-                    console.log('Image uploaded to Storage:', publicUrl);
-                    return publicUrl;
-                  } else {
-                    const errorText = await uploadResponse.text();
-                    console.error('Failed to upload to Storage:', uploadResponse.status, errorText);
+                  try {
+                    const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/mockups/${fileName}`, {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                        'Content-Type': 'image/png',
+                        'x-upsert': 'true',
+                      },
+                      body: bytes,
+                    });
+                    
+                    if (uploadResponse.ok) {
+                      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/mockups/${fileName}`;
+                      console.log('Image uploaded to Storage:', publicUrl);
+                      return publicUrl;
+                    } else {
+                      const errorText = await uploadResponse.text();
+                      console.error('Failed to upload to Storage:', uploadResponse.status, errorText);
+                      
+                      // Fallback: return as data URL
+                      console.log('Falling back to data URL');
+                      return `data:image/png;base64,${base64Data}`;
+                    }
+                  } catch (uploadError) {
+                    console.error('Upload error:', uploadError);
+                    // Fallback: return as data URL
+                    return `data:image/png;base64,${base64Data}`;
                   }
                 }
                 
