@@ -7,23 +7,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-// Import templates
-import fordTemplate from "@/assets/templates/ford-transporter.png";
-import vwTemplate from "@/assets/templates/vw-transporter.png";
-import mercedesSprinterTemplate from "@/assets/templates/mercedes-sprinter.png";
-import mercedesTransporterTemplate from "@/assets/templates/mercedes-transporter.png";
-import scaffoldTemplate from "@/assets/templates/scaffold-banner.png";
-import fenceTemplate from "@/assets/templates/fence-banner.png";
-
-const TEMPLATES = [
-  { url: fordTemplate, name: "ford-transporter.png" },
-  { url: vwTemplate, name: "vw-transporter.png" },
-  { url: mercedesSprinterTemplate, name: "mercedes-sprinter.png" },
-  { url: mercedesTransporterTemplate, name: "mercedes-transporter.png" },
-  { url: scaffoldTemplate, name: "scaffold-banner.png" },
-  { url: fenceTemplate, name: "fence-banner.png" },
-];
-
 const Review = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,71 +23,32 @@ const Review = () => {
       return;
     }
 
-    // Ensure templates are uploaded, then generate mockups
-    ensureTemplatesAndGenerateMockups();
+    // Upload templates first, then generate mockups
+    uploadTemplatesViaFunction();
   }, [projectData, navigate]);
 
-  const uploadTemplates = async () => {
+  const uploadTemplatesViaFunction = async () => {
     setIsUploadingTemplates(true);
-    console.log("Checking and uploading templates...");
+    console.log("Uploading templates via edge function...");
 
     try {
-      // Check if templates already exist
-      const { data: existingFiles } = await supabase.storage
-        .from("mockup-templates")
-        .list();
+      const { data, error } = await supabase.functions.invoke('upload-templates');
 
-      if (existingFiles && existingFiles.length >= 6) {
-        console.log("Templates already exist, skipping upload");
-        return true;
-      }
+      if (error) throw error;
 
-      // Upload all templates
-      let successCount = 0;
-      for (const template of TEMPLATES) {
-        try {
-          const response = await fetch(template.url);
-          const blob = await response.blob();
-
-          const { error } = await supabase.storage
-            .from("mockup-templates")
-            .upload(template.name, blob, {
-              contentType: "image/png",
-              upsert: true,
-            });
-
-          if (!error) {
-            successCount++;
-            console.log(`Uploaded ${template.name}`);
-          } else {
-            console.error(`Failed to upload ${template.name}:`, error);
-          }
-        } catch (err) {
-          console.error(`Error uploading ${template.name}:`, err);
-        }
-      }
-
-      if (successCount === TEMPLATES.length) {
-        console.log("All templates uploaded successfully");
-        return true;
+      if (data?.success) {
+        console.log("Templates uploaded successfully:", data);
+        toast.success(`${data.uploaded} Templates hochgeladen`);
+        await generateMockups();
       } else {
-        console.warn(`Only ${successCount}/${TEMPLATES.length} templates uploaded`);
-        return successCount > 0;
+        console.error("Template upload failed:", data);
+        toast.error("Fehler beim Upload der Templates");
       }
     } catch (error) {
-      console.error("Error checking/uploading templates:", error);
-      return false;
+      console.error("Error uploading templates:", error);
+      toast.error("Fehler beim Upload der Templates");
     } finally {
       setIsUploadingTemplates(false);
-    }
-  };
-
-  const ensureTemplatesAndGenerateMockups = async () => {
-    const templatesReady = await uploadTemplates();
-    if (templatesReady) {
-      await generateMockups();
-    } else {
-      toast.error("Fehler beim Upload der Templates. Bitte versuchen Sie es erneut.");
     }
   };
 
