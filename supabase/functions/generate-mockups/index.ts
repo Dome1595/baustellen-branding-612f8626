@@ -12,10 +12,15 @@ serve(async (req) => {
 
   try {
     const { projectData } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const LANGDOCK_API_KEY = Deno.env.get('LANGDOCK_API_KEY');
+    const LANGDOCK_ASSISTANT_ID = Deno.env.get('LANGDOCK_ASSISTANT_ID_MOCKUPS');
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    if (!LANGDOCK_API_KEY) {
+      throw new Error('LANGDOCK_API_KEY not configured');
+    }
+
+    if (!LANGDOCK_ASSISTANT_ID) {
+      throw new Error('LANGDOCK_ASSISTANT_ID_MOCKUPS not configured');
     }
 
     console.log('Generating mockups for project:', projectData.company_name || projectData.companyName);
@@ -49,7 +54,7 @@ Design Requirements:
 
 CRITICAL: This must be a realistic photograph, not an illustration. The van should have clearly visible text with company name, logo, slogan, and contact information.`;
 
-      const vehicleResponse = await generateImage(vehiclePrompt, LOVABLE_API_KEY, logoUrl);
+      const vehicleResponse = await generateImageWithLangdock(vehiclePrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID, logoUrl);
       mockups.push({
         type: 'vehicle',
         url: vehicleResponse,
@@ -81,7 +86,7 @@ Design Requirements:
 
 CRITICAL: This must be a realistic photograph of an actual construction site with the branded banner displaying all text and logo clearly visible.`;
 
-      const scaffoldResponse = await generateImage(scaffoldPrompt, LOVABLE_API_KEY, logoUrl);
+      const scaffoldResponse = await generateImageWithLangdock(scaffoldPrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID, logoUrl);
       mockups.push({
         type: 'scaffold',
         url: scaffoldResponse,
@@ -115,7 +120,7 @@ Design Requirements:
 
 CRITICAL: This must be a realistic photograph of actual construction site fence with branded banners clearly showing all text and logo.`;
 
-      const fenceResponse = await generateImage(fencePrompt, LOVABLE_API_KEY, logoUrl);
+      const fenceResponse = await generateImageWithLangdock(fencePrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID, logoUrl);
       mockups.push({
         type: 'fence',
         url: fenceResponse,
@@ -138,86 +143,189 @@ CRITICAL: This must be a realistic photograph of actual construction site fence 
   }
 });
 
-async function generateImage(prompt: string, apiKey: string, logoUrl?: string): Promise<string> {
-  // Optimize prompt for image generation
-  const imagePrompt = `Generate a realistic mockup image: ${prompt}
-
-IMPORTANT: ${logoUrl ? 'Use the provided company logo image in the mockup. Place it prominently and professionally.' : 'Generate an actual image, not a description.'}`;
-
-  // Build message content - multimodal if logo is provided
-  let messageContent: any;
+async function generateImageWithLangdock(
+  prompt: string, 
+  apiKey: string, 
+  assistantId: string,
+  logoUrl?: string
+): Promise<string> {
+  const baseUrl = 'https://api.langdock.com/v1';
   
-  if (logoUrl) {
-    // Fetch logo to get as base64 or use URL directly
-    messageContent = [
-      {
-        type: 'text',
-        text: imagePrompt
+  try {
+    console.log('Starting Langdock image generation...');
+    
+    // 1. Create a thread
+    const threadResponse = await fetch(`${baseUrl}/threads`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      {
-        type: 'image_url',
-        image_url: {
-          url: logoUrl
+      body: JSON.stringify({}),
+    });
+
+    if (!threadResponse.ok) {
+      const errorText = await threadResponse.text();
+      console.error('Thread creation failed:', threadResponse.status, errorText);
+      throw new Error(`Failed to create thread: ${threadResponse.status}`);
+    }
+
+    const thread = await threadResponse.json();
+    const threadId = thread.id;
+    console.log('Thread created:', threadId);
+
+    // 2. Build message content with logo if provided
+    let messageContent = prompt;
+    const attachments = [];
+
+    if (logoUrl) {
+      messageContent = `${prompt}\n\nIMPORTANT: Use the attached logo image in the mockup design.`;
+      // Note: Langdock attachments would need to be uploaded separately
+      // For now, we'll include the logo URL in the prompt
+      messageContent = `${prompt}\n\nLogo URL: ${logoUrl}`;
+    }
+
+    // 3. Add message to thread
+    const messageResponse = await fetch(`${baseUrl}/threads/${threadId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        role: 'user',
+        content: messageContent,
+      }),
+    });
+
+    if (!messageResponse.ok) {
+      const errorText = await messageResponse.text();
+      console.error('Message creation failed:', messageResponse.status, errorText);
+      throw new Error(`Failed to create message: ${messageResponse.status}`);
+    }
+
+    console.log('Message added to thread');
+
+    // 4. Create and run the assistant
+    const runResponse = await fetch(`${baseUrl}/threads/${threadId}/runs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        assistant_id: assistantId,
+      }),
+    });
+
+    if (!runResponse.ok) {
+      const errorText = await runResponse.text();
+      console.error('Run creation failed:', runResponse.status, errorText);
+      throw new Error(`Failed to create run: ${runResponse.status}`);
+    }
+
+    const run = await runResponse.json();
+    const runId = run.id;
+    console.log('Run created:', runId);
+
+    // 5. Poll for completion
+    let runStatus = run.status;
+    let attempts = 0;
+    const maxAttempts = 60; // 2 minutes timeout (2 seconds * 60)
+
+    while (runStatus !== 'completed' && runStatus !== 'failed' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+      
+      const statusResponse = await fetch(`${baseUrl}/threads/${threadId}/runs/${runId}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!statusResponse.ok) {
+        throw new Error(`Failed to check run status: ${statusResponse.status}`);
+      }
+
+      const statusData = await statusResponse.json();
+      runStatus = statusData.status;
+      attempts++;
+      
+      console.log(`Run status: ${runStatus} (attempt ${attempts}/${maxAttempts})`);
+    }
+
+    if (runStatus !== 'completed') {
+      throw new Error(`Run did not complete. Final status: ${runStatus}`);
+    }
+
+    // 6. Retrieve messages to get the generated image
+    const messagesResponse = await fetch(`${baseUrl}/threads/${threadId}/messages`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+    });
+
+    if (!messagesResponse.ok) {
+      throw new Error(`Failed to retrieve messages: ${messagesResponse.status}`);
+    }
+
+    const messagesData = await messagesResponse.json();
+    console.log('Messages retrieved:', JSON.stringify(messagesData, null, 2));
+
+    // Find the assistant's response with image
+    const assistantMessages = messagesData.data.filter((msg: any) => msg.role === 'assistant');
+    
+    if (assistantMessages.length === 0) {
+      throw new Error('No assistant response found');
+    }
+
+    // Look for image in content or attachments
+    const lastMessage = assistantMessages[0];
+    
+    // Check for image in content array
+    if (Array.isArray(lastMessage.content)) {
+      for (const item of lastMessage.content) {
+        if (item.type === 'image_url' && item.image_url?.url) {
+          console.log('Image URL found in content');
+          return item.image_url.url;
+        }
+        if (item.type === 'image_file' && item.image_file?.file_id) {
+          // Download file from Langdock
+          const fileId = item.image_file.file_id;
+          const fileUrl = `${baseUrl}/files/${fileId}/content`;
+          console.log('Image file ID found:', fileId);
+          return fileUrl; // This would need additional auth handling
         }
       }
-    ];
-  } else {
-    messageContent = imagePrompt;
-  }
+    }
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash-image-preview',
-      messages: [
-        {
-          role: 'user',
-          content: messageContent
+    // Check for attachments
+    if (lastMessage.attachments && lastMessage.attachments.length > 0) {
+      const imageAttachment = lastMessage.attachments.find((att: any) => 
+        att.type === 'image' || att.content_type?.startsWith('image/')
+      );
+      
+      if (imageAttachment?.url) {
+        console.log('Image URL found in attachments');
+        return imageAttachment.url;
+      }
+    }
+
+    // If content is a string, check if it contains a base64 image
+    if (typeof lastMessage.content === 'string') {
+      if (lastMessage.content.includes('data:image')) {
+        const base64Match = lastMessage.content.match(/data:image\/[^;]+;base64,[^\s"]+/);
+        if (base64Match) {
+          console.log('Base64 image found in text content');
+          return base64Match[0];
         }
-      ],
-      modalities: ['image', 'text']
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Lovable AI error:', response.status, errorText);
-    
-    if (response.status === 429) {
-      throw new Error('Rate limit exceeded. Please try again later.');
+      }
     }
-    if (response.status === 402) {
-      throw new Error('Payment required. Please add credits to your Lovable AI workspace.');
-    }
-    
-    throw new Error(`Image generation failed: ${response.status}`);
-  }
 
-  const data = await response.json();
-  console.log('Lovable AI response received');
-  console.log('Response structure:', JSON.stringify({
-    model: data.model,
-    hasImages: !!data.choices?.[0]?.message?.images,
-    messageKeys: Object.keys(data.choices?.[0]?.message || {}),
-    fullResponse: data
-  }, null, 2));
-  
-  // Extract base64 image from response - check multiple possible locations
-  let imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  
-  // Try alternative response structure
-  if (!imageUrl && data.choices?.[0]?.message?.images?.[0]) {
-    imageUrl = data.choices[0].message.images[0];
+    console.error('No image found in response. Last message:', JSON.stringify(lastMessage, null, 2));
+    throw new Error('No image URL found in assistant response');
+
+  } catch (error) {
+    console.error('Langdock generation error:', error);
+    throw error;
   }
-  
-  if (!imageUrl) {
-    console.error('No image in response. Full data:', JSON.stringify(data, null, 2));
-    throw new Error('No image generated - model may not support image generation or requires different parameters');
-  }
-  
-  return imageUrl;
 }
