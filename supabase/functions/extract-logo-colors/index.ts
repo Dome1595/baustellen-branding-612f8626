@@ -13,9 +13,10 @@ serve(async (req) => {
   try {
     const { logoUrl } = await req.json();
     const LANGDOCK_API_KEY = Deno.env.get('LANGDOCK_API_KEY');
+    const ASSISTANT_ID = Deno.env.get('LANGDOCK_ASSISTANT_ID_COLORS');
 
-    if (!LANGDOCK_API_KEY) {
-      throw new Error('LANGDOCK_API_KEY not configured');
+    if (!LANGDOCK_API_KEY || !ASSISTANT_ID) {
+      throw new Error('LANGDOCK_API_KEY or ASSISTANT_ID not configured');
     }
 
     console.log('Extracting colors from logo:', logoUrl);
@@ -32,38 +33,112 @@ Wähle:
 - SECONDARY: Die zweithäufigste oder komplementäre Farbe
 - ACCENT: Eine Akzentfarbe für Highlights
 
-Falls das Logo hauptsächlich schwarz/weiß ist, wähle passende professionelle Farben für ein Handwerksunternehmen.`;
+Falls das Logo hauptsächlich schwarz/weiß ist, wähle passende professionelle Farben für ein Handwerksunternehmen.
 
-    const response = await fetch('https://api.langdock.com/v1/chat/completions', {
+Bild URL: ${logoUrl}`;
+
+    // Create thread
+    const threadResponse = await fetch('https://api.langdock.com/v1/threads', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (!threadResponse.ok) {
+      const errorText = await threadResponse.text();
+      console.error('Langdock thread creation error:', threadResponse.status, errorText);
+      throw new Error(`Failed to create thread: ${threadResponse.status}`);
+    }
+
+    const threadData = await threadResponse.json();
+    const threadId = threadData.id;
+
+    // Add message with image
+    const messageResponse = await fetch(`https://api.langdock.com/v1/threads/${threadId}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: 'Du bist ein Experte für Farbanalyse und Branding.' },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: logoUrl } }
-            ]
-          }
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: logoUrl } }
         ],
-        max_tokens: 300,
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Langdock API error:', response.status, errorText);
-      throw new Error(`Langdock API error: ${response.status}`);
+    if (!messageResponse.ok) {
+      const errorText = await messageResponse.text();
+      console.error('Langdock message error:', messageResponse.status, errorText);
+      throw new Error(`Failed to add message: ${messageResponse.status}`);
     }
 
-    const data = await response.json();
-    const content = data.choices[0].message.content;
+    // Run assistant
+    const runResponse = await fetch(`https://api.langdock.com/v1/threads/${threadId}/runs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        assistant_id: ASSISTANT_ID,
+      }),
+    });
+
+    if (!runResponse.ok) {
+      const errorText = await runResponse.text();
+      console.error('Langdock run error:', runResponse.status, errorText);
+      throw new Error(`Failed to run assistant: ${runResponse.status}`);
+    }
+
+    const runData = await runResponse.json();
+    const runId = runData.id;
+
+    // Poll for completion
+    let runStatus = 'queued';
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    while (runStatus !== 'completed' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const statusResponse = await fetch(`https://api.langdock.com/v1/threads/${threadId}/runs/${runId}`, {
+        headers: {
+          'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
+        },
+      });
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        runStatus = statusData.status;
+      }
+      
+      attempts++;
+    }
+
+    if (runStatus !== 'completed') {
+      throw new Error('Assistant run timeout');
+    }
+
+    // Get messages
+    const messagesResponse = await fetch(`https://api.langdock.com/v1/threads/${threadId}/messages`, {
+      headers: {
+        'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
+      },
+    });
+
+    if (!messagesResponse.ok) {
+      throw new Error('Failed to get messages');
+    }
+
+    const messagesData = await messagesResponse.json();
+    const assistantMessage = messagesData.data.find((msg: any) => msg.role === 'assistant');
+    const content = assistantMessage?.content[0]?.text?.value || '';
     
     // Parse the color codes from the response
     const primaryMatch = content.match(/PRIMARY:\s*(#[0-9A-Fa-f]{6})/);

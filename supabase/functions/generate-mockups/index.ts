@@ -13,9 +13,10 @@ serve(async (req) => {
   try {
     const { projectData } = await req.json();
     const LANGDOCK_API_KEY = Deno.env.get('LANGDOCK_API_KEY');
+    const ASSISTANT_ID = Deno.env.get('LANGDOCK_ASSISTANT_ID_MOCKUPS');
 
-    if (!LANGDOCK_API_KEY) {
-      throw new Error('LANGDOCK_API_KEY not configured');
+    if (!LANGDOCK_API_KEY || !ASSISTANT_ID) {
+      throw new Error('LANGDOCK_API_KEY or ASSISTANT_ID not configured');
     }
 
     console.log('Generating mockups for project:', projectData.company_name);
@@ -35,7 +36,7 @@ Das Design soll ${projectData.creativity_level === 3 ? 'kreativ und modern' : pr
 
 Zeige das Logo, den Firmennamen, Slogan und Kontaktinformationen auf einem weißen Transporter.`;
 
-      const vehicleResponse = await generateImage(vehiclePrompt, LANGDOCK_API_KEY);
+      const vehicleResponse = await generateImage(vehiclePrompt, LANGDOCK_API_KEY, ASSISTANT_ID);
       mockups.push({
         type: 'vehicle',
         url: vehicleResponse,
@@ -53,7 +54,7 @@ Größe: ${projectData.scaffold_size || '250 x 205 cm'}
 
 Das Design soll großflächig und aus der Ferne gut sichtbar sein. Zeige die Gerüstplane an einer Baustelle.`;
 
-      const scaffoldResponse = await generateImage(scaffoldPrompt, LANGDOCK_API_KEY);
+      const scaffoldResponse = await generateImage(scaffoldPrompt, LANGDOCK_API_KEY, ASSISTANT_ID);
       mockups.push({
         type: 'scaffold',
         url: scaffoldResponse,
@@ -71,7 +72,7 @@ Anzahl Felder: ${projectData.fence_fields || 3}
 
 Das Design soll auf einem Bauzaun an einer Straße zu sehen sein.`;
 
-      const fenceResponse = await generateImage(fencePrompt, LANGDOCK_API_KEY);
+      const fenceResponse = await generateImage(fencePrompt, LANGDOCK_API_KEY, ASSISTANT_ID);
       mockups.push({
         type: 'fence',
         url: fenceResponse,
@@ -94,27 +95,98 @@ Das Design soll auf einem Bauzaun an einer Straße zu sehen sein.`;
   }
 });
 
-async function generateImage(prompt: string, apiKey: string): Promise<string> {
-  const response = await fetch('https://api.langdock.com/v1/chat/completions', {
+async function generateImage(prompt: string, apiKey: string, assistantId: string): Promise<string> {
+  // Create thread
+  const threadResponse = await fetch('https://api.langdock.com/v1/threads', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+
+  if (!threadResponse.ok) {
+    throw new Error(`Failed to create thread: ${threadResponse.status}`);
+  }
+
+  const threadData = await threadResponse.json();
+  const threadId = threadData.id;
+
+  // Add message
+  const messageResponse = await fetch(`https://api.langdock.com/v1/threads/${threadId}/messages`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'dall-e-3',
-      messages: [
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 1024,
+      role: 'user',
+      content: prompt,
     }),
   });
 
-  if (!response.ok) {
-    throw new Error(`Image generation failed: ${response.status}`);
+  if (!messageResponse.ok) {
+    throw new Error(`Failed to add message: ${messageResponse.status}`);
   }
 
-  const data = await response.json();
-  // Extract image URL from response
-  return data.choices[0].message.content || '';
+  // Run assistant
+  const runResponse = await fetch(`https://api.langdock.com/v1/threads/${threadId}/runs`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      assistant_id: assistantId,
+    }),
+  });
+
+  if (!runResponse.ok) {
+    throw new Error(`Failed to run assistant: ${runResponse.status}`);
+  }
+
+  const runData = await runResponse.json();
+  const runId = runData.id;
+
+  // Poll for completion
+  let runStatus = 'queued';
+  let attempts = 0;
+  const maxAttempts = 60; // Longer timeout for image generation
+
+  while (runStatus !== 'completed' && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Check every 2 seconds
+    
+    const statusResponse = await fetch(`https://api.langdock.com/v1/threads/${threadId}/runs/${runId}`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+    });
+
+    if (statusResponse.ok) {
+      const statusData = await statusResponse.json();
+      runStatus = statusData.status;
+    }
+    
+    attempts++;
+  }
+
+  if (runStatus !== 'completed') {
+    throw new Error('Image generation timeout');
+  }
+
+  // Get messages
+  const messagesResponse = await fetch(`https://api.langdock.com/v1/threads/${threadId}/messages`, {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+    },
+  });
+
+  if (!messagesResponse.ok) {
+    throw new Error('Failed to get messages');
+  }
+
+  const messagesData = await messagesResponse.json();
+  const assistantMessage = messagesData.data.find((msg: any) => msg.role === 'assistant');
+  return assistantMessage?.content[0]?.text?.value || '';
 }
