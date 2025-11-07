@@ -17,6 +17,59 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
 
+  const extractColorsFromImage = async (file: File): Promise<{ primaryColor: string; secondaryColor: string; accentColor: string }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      img.onload = () => {
+        // Resize for performance
+        const maxSize = 200;
+        const ratio = Math.min(maxSize / img.width, maxSize / img.height);
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
+        
+        if (!imageData) {
+          resolve({ primaryColor: '#1B4965', secondaryColor: '#62B6CB', accentColor: '#BEE9E8' });
+          return;
+        }
+
+        // Count colors
+        const colorMap = new Map<string, number>();
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          const r = imageData.data[i];
+          const g = imageData.data[i + 1];
+          const b = imageData.data[i + 2];
+          const a = imageData.data[i + 3];
+
+          // Skip transparent and very light/dark colors
+          if (a < 128 || (r > 240 && g > 240 && b > 240) || (r < 15 && g < 15 && b < 15)) continue;
+
+          const hex = `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+          colorMap.set(hex, (colorMap.get(hex) || 0) + 1);
+        }
+
+        // Get top 3 colors
+        const sortedColors = Array.from(colorMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([color]) => color);
+
+        resolve({
+          primaryColor: sortedColors[0] || '#1B4965',
+          secondaryColor: sortedColors[1] || '#62B6CB',
+          accentColor: sortedColors[2] || '#BEE9E8',
+        });
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -51,29 +104,19 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
         .from('logos')
         .getPublicUrl(filePath);
 
-      onUpdate({ logoUrl: publicUrl });
       toast.success('Logo erfolgreich hochgeladen');
 
-      // Extract colors from logo
+      // Extract colors from logo directly in browser
       try {
-        const { data: colorsData, error: colorsError } = await supabase.functions.invoke('extract-logo-colors', {
-          body: { logoUrl: publicUrl }
+        const colors = await extractColorsFromImage(file);
+        onUpdate({ 
+          logoUrl: publicUrl,
+          ...colors
         });
-
-        if (colorsError) throw colorsError;
-
-        if (colorsData) {
-          onUpdate({ 
-            logoUrl: publicUrl,
-            primaryColor: colorsData.primaryColor,
-            secondaryColor: colorsData.secondaryColor,
-            accentColor: colorsData.accentColor
-          });
-          toast.success('Markenfarben automatisch erkannt');
-        }
+        toast.success('Markenfarben automatisch erkannt');
       } catch (colorError) {
         console.error('Error extracting colors:', colorError);
-        // Continue without colors - user can select manually
+        onUpdate({ logoUrl: publicUrl });
       }
     } catch (error) {
       console.error('Error uploading logo:', error);
