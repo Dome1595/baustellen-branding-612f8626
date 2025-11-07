@@ -121,5 +121,22 @@ async function generateImage(prompt: string, apiKey: string, assistantId: string
   }
 
   const data = await response.json();
-  return data.result[0]?.content || '';
+  console.log('Langdock response:', JSON.stringify(data, null, 2));
+  
+  // Check if there's a tool call result with an image
+  const result = data.result?.[0];
+  
+  // Check if it's a tool call array
+  if (Array.isArray(result?.url)) {
+    const toolCall = result.url[0];
+    if (toolCall?.type === 'tool-call' && toolCall?.toolName === 'image_generation') {
+      // The image generation was initiated, but we need to wait for the result
+      // For now, return a placeholder or the prompt used
+      console.log('Image generation initiated with prompt:', toolCall.args?.prompt);
+      return toolCall.args?.prompt || 'Image generation in progress';
+    }
+  }
+  
+  // Otherwise try to get content directly
+  return result?.content || result?.url || '';
 }
