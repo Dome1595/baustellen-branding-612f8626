@@ -106,17 +106,29 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
 
       toast.success('Logo erfolgreich hochgeladen');
 
-      // Extract colors from logo directly in browser
+      // Extract colors from logo using Langdock
       try {
-        const colors = await extractColorsFromImage(file);
-        onUpdate({ 
-          logoUrl: publicUrl,
-          ...colors
+        const { data: colorsData, error: colorsError } = await supabase.functions.invoke('extract-logo-colors', {
+          body: { logoUrl: publicUrl }
         });
-        toast.success('Markenfarben automatisch erkannt');
+
+        if (colorsError) throw colorsError;
+
+        if (colorsData) {
+          onUpdate({ 
+            logoUrl: publicUrl,
+            primaryColor: colorsData.primaryColor,
+            secondaryColor: colorsData.secondaryColor,
+            accentColor: colorsData.accentColor
+          });
+          toast.success('Markenfarben automatisch erkannt');
+        } else {
+          onUpdate({ logoUrl: publicUrl });
+        }
       } catch (colorError) {
         console.error('Error extracting colors:', colorError);
         onUpdate({ logoUrl: publicUrl });
+        toast.info('Farben manuell auswählen oder Palette wählen');
       }
     } catch (error) {
       console.error('Error uploading logo:', error);

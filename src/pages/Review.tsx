@@ -51,14 +51,18 @@ const Review = () => {
     setIsGeneratingPdf(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-pdf', {
-        body: { projectId: location.state?.projectId }
+        body: { 
+          projectId: location.state?.projectId,
+          projectData,
+          mockups
+        }
       });
 
       if (error) throw error;
 
       if (data?.pdfUrl) {
         toast.success('PDF erfolgreich generiert');
-        navigate('/export', { state: { pdfUrl: data.pdfUrl, projectData } });
+        navigate('/export', { state: { pdfUrl: data.pdfUrl, projectData, mockups } });
       }
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -175,7 +179,7 @@ const Review = () => {
               <div className="flex items-center justify-center py-12">
                 <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
               </div>
-            ) : (
+            ) : mockups.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-3">
                 {mockups.map((mockup, index) => (
                   <Card key={index} className="overflow-hidden">
@@ -184,6 +188,10 @@ const Review = () => {
                         src={mockup.url}
                         alt={mockup.title}
                         className="h-48 w-full object-cover"
+                        onError={(e) => {
+                          console.error('Error loading mockup image:', mockup.url);
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     ) : (
                       <div className="h-48 w-full bg-muted flex items-center justify-center">
@@ -196,6 +204,10 @@ const Review = () => {
                     </div>
                   </Card>
                 ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
+                Keine Mockups verfügbar. Bitte wählen Sie mindestens einen Werbeträger.
               </div>
             )}
           </Card>

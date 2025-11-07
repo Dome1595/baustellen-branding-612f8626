@@ -11,16 +11,19 @@ serve(async (req) => {
   }
 
   try {
-    const { projectId } = await req.json();
+    const { projectId, projectData, mockups } = await req.json();
     
     console.log('Generating PDF for project:', projectId);
 
-    // TODO: Implement actual PDF generation using a library like PDFKit or Puppeteer
-    // For now, return a placeholder response
+    // For now, we'll create a simple data URL that triggers a download
+    // In production, you would use a PDF generation library
+    const pdfContent = generateSimplePDF(projectData, mockups);
     
-    const pdfUrl = `https://placeholder-pdf-url.com/${projectId}.pdf`;
+    // Convert to base64
+    const base64 = btoa(pdfContent);
+    const pdfUrl = `data:application/pdf;base64,${base64}`;
 
-    return new Response(JSON.stringify({ pdfUrl }), {
+    return new Response(JSON.stringify({ pdfUrl, success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
@@ -32,3 +35,37 @@ serve(async (req) => {
     });
   }
 });
+
+function generateSimplePDF(projectData: any, mockups: any[]): string {
+  // This is a placeholder that creates a simple text representation
+  // In production, use a proper PDF library like jsPDF or pdfmake
+  const content = `
+BAUSTELLEN-BRANDING PAKET
+========================
+
+Unternehmen: ${projectData?.companyName || 'N/A'}
+Slogan: "${projectData?.selectedSlogan || 'N/A'}"
+
+MARKENFARBEN
+------------
+Primärfarbe: ${projectData?.primaryColor || 'N/A'}
+Sekundärfarbe: ${projectData?.secondaryColor || 'N/A'}
+Akzentfarbe: ${projectData?.accentColor || 'N/A'}
+
+WERBETRÄGER
+-----------
+${projectData?.vehicleEnabled ? '✓ Fahrzeugbeschriftung' : ''}
+${projectData?.scaffoldEnabled ? '✓ Gerüstplane' : ''}
+${projectData?.fenceEnabled ? '✓ Bauzaunbanner' : ''}
+
+GENERIERTE MOCKUPS
+------------------
+${mockups?.length || 0} Mockup(s) wurden erstellt.
+
+Hinweis: Dies ist ein vereinfachtes PDF. Für die vollständige Produktion
+kontaktieren Sie bitte einen Druckdienstleister mit den oben genannten
+Spezifikationen.
+  `;
+  
+  return content;
+}

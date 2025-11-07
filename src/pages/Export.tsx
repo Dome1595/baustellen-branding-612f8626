@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CheckCircle2, Download } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const Export = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { pdfUrl, projectData } = location.state || {};
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -30,7 +32,19 @@ const Export = () => {
                   Enthält alle Mockups, Spezifikationen und Druckdaten
                 </p>
               </div>
-              <Button size="lg" className="group">
+              <Button 
+                size="lg" 
+                className="group"
+                onClick={() => {
+                  if (pdfUrl) {
+                    const link = document.createElement('a');
+                    link.href = pdfUrl;
+                    link.download = `${projectData?.companyName || 'Baustellen-Branding'}-Paket.pdf`;
+                    link.click();
+                  }
+                }}
+                disabled={!pdfUrl}
+              >
                 <Download className="mr-2 h-5 w-5" />
                 PDF herunterladen
               </Button>

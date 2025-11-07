@@ -63,17 +63,46 @@ Gib nur die 5 Slogans zurück, einen pro Zeile, ohne Nummerierung oder zusätzli
     const data = await response.json();
     let content = data.result[0]?.content || '';
     
-    // Try to parse as JSON if the response is structured
+    // Clean up the response to extract only the slogans
     let slogans: string[] = [];
+    
+    // Try to parse as JSON first
     try {
       const parsed = JSON.parse(content);
       if (parsed.suggestions && Array.isArray(parsed.suggestions)) {
         slogans = parsed.suggestions;
       }
     } catch {
-      // If not JSON, split by lines
-      slogans = content.split('\n').filter((line: string) => line.trim().length > 0);
+      // If not JSON, extract lines that look like slogans
+      const lines = content.split('\n');
+      slogans = lines
+        .filter((line: string) => {
+          const trimmed = line.trim();
+          // Filter out JSON syntax, system messages, and empty lines
+          return trimmed.length > 0 && 
+                 !trimmed.startsWith('{') && 
+                 !trimmed.startsWith('}') && 
+                 !trimmed.startsWith('"cluster"') && 
+                 !trimmed.startsWith('"variant"') && 
+                 !trimmed.startsWith('"suggestions"') && 
+                 !trimmed.includes('Ihr Anfrage') &&
+                 !trimmed.includes('Die Vorgaben') &&
+                 !trimmed.match(/^\d+\.\s/) && // Remove numbered items
+                 trimmed !== '[' && 
+                 trimmed !== ']';
+        })
+        .map((line: string) => {
+          // Clean up quotes and extra formatting
+          return line.trim()
+            .replace(/^["']|["']$/g, '') // Remove quotes at start/end
+            .replace(/^-\s*/, '') // Remove leading dashes
+            .replace(/,\s*$/, ''); // Remove trailing commas
+        })
+        .filter((line: string) => line.length > 5 && line.length < 100); // Reasonable slogan length
     }
+    
+    // Take only first 5 slogans
+    slogans = slogans.slice(0, 5);
 
     console.log('Generated slogans:', slogans);
 
