@@ -38,7 +38,7 @@ const Step4Media = ({ data, onUpdate }: Step4MediaProps) => {
           <div className="mt-4 grid gap-4 border-t pt-4 md:grid-cols-2">
             <div>
               <Label>Marke</Label>
-              <Select>
+              <Select value={data.vehicleBrand} onValueChange={(value) => onUpdate({ vehicleBrand: value })}>
                 <SelectTrigger className="mt-2">
                   <SelectValue placeholder="z.B. Mercedes" />
                 </SelectTrigger>
@@ -51,7 +51,7 @@ const Step4Media = ({ data, onUpdate }: Step4MediaProps) => {
             </div>
             <div>
               <Label>Modell</Label>
-              <Select>
+              <Select value={data.vehicleModel} onValueChange={(value) => onUpdate({ vehicleModel: value })}>
                 <SelectTrigger className="mt-2">
                   <SelectValue placeholder="z.B. Sprinter" />
                 </SelectTrigger>
@@ -63,7 +63,7 @@ const Step4Media = ({ data, onUpdate }: Step4MediaProps) => {
             </div>
             <div>
               <Label>Aufbau</Label>
-              <Select>
+              <Select value={data.vehicleBody} onValueChange={(value) => onUpdate({ vehicleBody: value })}>
                 <SelectTrigger className="mt-2">
                   <SelectValue placeholder="Kastenwagen" />
                 </SelectTrigger>
@@ -75,7 +75,7 @@ const Step4Media = ({ data, onUpdate }: Step4MediaProps) => {
             </div>
             <div>
               <Label>Fahrzeugfarbe</Label>
-              <Select>
+              <Select value={data.vehicleColor} onValueChange={(value) => onUpdate({ vehicleColor: value })}>
                 <SelectTrigger className="mt-2">
                   <SelectValue placeholder="Weiß" />
                 </SelectTrigger>
@@ -111,7 +111,7 @@ const Step4Media = ({ data, onUpdate }: Step4MediaProps) => {
         {data.scaffoldEnabled && (
           <div className="mt-4 border-t pt-4">
             <Label>Größe</Label>
-            <Select defaultValue="250x205">
+            <Select value={data.scaffoldSize} onValueChange={(value) => onUpdate({ scaffoldSize: value })} defaultValue="250x205">
               <SelectTrigger className="mt-2">
                 <SelectValue />
               </SelectTrigger>
@@ -147,7 +147,7 @@ const Step4Media = ({ data, onUpdate }: Step4MediaProps) => {
         {data.fenceEnabled && (
           <div className="mt-4 border-t pt-4">
             <Label>Anzahl Felder</Label>
-            <Select defaultValue="3">
+            <Select value={data.fenceFields?.toString()} onValueChange={(value) => onUpdate({ fenceFields: parseInt(value) })} defaultValue="3">
               <SelectTrigger className="mt-2">
                 <SelectValue />
               </SelectTrigger>

@@ -1,8 +1,9 @@
 import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Upload, Check } from "lucide-react";
-import { useState, useRef } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Upload, Palette, Check } from "lucide-react";
+import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -12,24 +13,24 @@ interface Step2DesignProps {
 }
 
 const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     // Validate file type
-    const validTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
     if (!validTypes.includes(file.type)) {
-      toast.error('Bitte laden Sie ein gültiges Logo-Format hoch (SVG, PNG, JPG oder PDF)');
+      toast.error('Bitte laden Sie ein PNG, JPG oder SVG Bild hoch');
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Die Datei ist zu groß. Maximale Größe: 5MB');
+      toast.error('Die Datei ist zu groß. Maximal 5MB erlaubt.');
       return;
     }
 
@@ -40,7 +41,7 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
       const filePath = fileName;
 
-      const { error: uploadError, data: uploadData } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('logos')
         .upload(filePath, file);
 
@@ -50,38 +51,73 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
         .from('logos')
         .getPublicUrl(filePath);
 
-      onUpdate({ logoUrl: publicUrl, logoFileName: file.name });
+      onUpdate({ logoUrl: publicUrl });
       toast.success('Logo erfolgreich hochgeladen');
+
+      // Extract colors from logo
+      try {
+        const { data: colorsData, error: colorsError } = await supabase.functions.invoke('extract-logo-colors', {
+          body: { logoUrl: publicUrl }
+        });
+
+        if (colorsError) throw colorsError;
+
+        if (colorsData) {
+          onUpdate({ 
+            logoUrl: publicUrl,
+            primaryColor: colorsData.primaryColor,
+            secondaryColor: colorsData.secondaryColor,
+            accentColor: colorsData.accentColor
+          });
+          toast.success('Markenfarben automatisch erkannt');
+        }
+      } catch (colorError) {
+        console.error('Error extracting colors:', colorError);
+        // Continue without colors - user can select manually
+      }
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Error uploading logo:', error);
       toast.error('Fehler beim Hochladen des Logos');
     } finally {
       setIsUploading(false);
     }
   };
 
-  const suggestedColors = [
-    { primary: "#2B7A78", secondary: "#17252A", accent: "#3AAFA9" },
-    { primary: "#005BBB", secondary: "#A7B1BC", accent: "#FFD500" },
-    { primary: "#1B4965", secondary: "#62B6CB", accent: "#BEE9E8" },
+  const suggestedPalettes = [
+    {
+      name: "Blau-Grün",
+      primary: "#1B4965",
+      secondary: "#62B6CB",
+      accent: "#BEE9E8",
+    },
+    {
+      name: "Orange-Grau",
+      primary: "#FF6B35",
+      secondary: "#F7931E",
+      accent: "#C5C6C7",
+    },
+    {
+      name: "Grün-Beige",
+      primary: "#2B7A78",
+      secondary: "#3AAFA9",
+      accent: "#DEF2F1",
+    },
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Logo Upload */}
-      <div>
-        <Label className="mb-3 block text-lg font-semibold">
-          2.1 Logo-Upload
-        </Label>
-        <p className="mb-4 text-muted-foreground">
-          Bevorzugt: SVG, EPS, PDF oder AI. Alternativ: PNG oder JPG (mind. 1000px Kantenlänge)
-        </p>
+    <div>
+      <p className="mb-6 text-lg text-muted-foreground">
+        Laden Sie Ihr Logo hoch und definieren Sie Ihre Markenfarben.
+      </p>
 
+      {/* Logo Upload */}
+      <div className="mb-8">
+        <h3 className="mb-4 text-lg font-semibold">2.1 Logo hochladen</h3>
         <Card className="border-2 border-dashed p-8">
           <input
             ref={fileInputRef}
             type="file"
-            accept=".svg,.png,.jpg,.jpeg,.pdf"
+            accept=".svg,.png,.jpg,.jpeg"
             className="hidden"
             onChange={handleLogoUpload}
           />
@@ -105,7 +141,14 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
               </div>
               <div className="flex-1">
                 <p className="font-medium">Logo erfolgreich hochgeladen</p>
-                <p className="text-sm text-muted-foreground">{data.logoFileName || 'logo'}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-2"
+                >
+                  Anderes Logo wählen
+                </Button>
               </div>
               <Check className="h-6 w-6 text-primary" />
             </div>
@@ -114,55 +157,127 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
       </div>
 
       {/* Colors */}
-      <div>
-        <Label className="mb-3 block text-lg font-semibold">
-          2.2 Markenfarben
-        </Label>
-        <p className="mb-4 text-muted-foreground">
-          Basierend auf Ihrem Logo schlagen wir diese Farben vor:
+      <div className="mb-8">
+        <h3 className="mb-4 text-lg font-semibold">2.2 Markenfarben</h3>
+        <p className="mb-4 text-sm text-muted-foreground">
+          {data.logoUrl 
+            ? "Wählen Sie eine Farbpalette oder passen Sie die erkannten Farben an."
+            : "Laden Sie zuerst ein Logo hoch, um Farben zu erkennen."}
         </p>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {suggestedColors.map((colorSet, idx) => (
-            <Card
-              key={idx}
-              className="cursor-pointer border-2 p-4 transition-all hover:shadow-lg hover:border-primary/50"
-              onClick={() =>
-                onUpdate({
-                  primaryColor: colorSet.primary,
-                  secondaryColor: colorSet.secondary,
-                  accentColor: colorSet.accent,
-                })
-              }
-            >
-              <div className="mb-3 flex gap-2">
-                <div
-                  className="h-12 flex-1 rounded"
-                  style={{ backgroundColor: colorSet.primary }}
-                ></div>
-                <div
-                  className="h-12 flex-1 rounded"
-                  style={{ backgroundColor: colorSet.secondary }}
-                ></div>
-                <div
-                  className="h-12 flex-1 rounded"
-                  style={{ backgroundColor: colorSet.accent }}
-                ></div>
-              </div>
-              <p className="text-center text-sm text-muted-foreground">
-                Farbschema {idx + 1}
-              </p>
-            </Card>
-          ))}
-        </div>
+        {data.logoUrl && (
+          <>
+            <div className="mb-6 grid gap-4 md:grid-cols-3">
+              {suggestedPalettes.map((palette, index) => (
+                <Card
+                  key={index}
+                  className={`cursor-pointer border-2 p-4 transition-all hover:shadow-md ${
+                    data.primaryColor === palette.primary && data.secondaryColor === palette.secondary
+                      ? "border-primary"
+                      : "border-border"
+                  }`}
+                  onClick={() => {
+                    onUpdate({
+                      primaryColor: palette.primary,
+                      secondaryColor: palette.secondary,
+                      accentColor: palette.accent,
+                    });
+                  }}
+                >
+                  <div className="mb-3 flex gap-2">
+                    <div
+                      className="h-12 flex-1 rounded"
+                      style={{ backgroundColor: palette.primary }}
+                    />
+                    <div
+                      className="h-12 flex-1 rounded"
+                      style={{ backgroundColor: palette.secondary }}
+                    />
+                    <div
+                      className="h-12 flex-1 rounded"
+                      style={{ backgroundColor: palette.accent }}
+                    />
+                  </div>
+                  <p className="text-center text-sm font-medium">{palette.name}</p>
+                </Card>
+              ))}
+            </div>
 
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => setShowColorPicker(!showColorPicker)}
-        >
-          Farben manuell definieren
-        </Button>
+            {showColorPicker ? (
+              <Card className="p-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label className="mb-2 block">Primärfarbe</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="color"
+                        value={data.primaryColor || '#1B4965'}
+                        onChange={(e) => onUpdate({ primaryColor: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={data.primaryColor || '#1B4965'}
+                        onChange={(e) => onUpdate({ primaryColor: e.target.value })}
+                        placeholder="#HEXCODE"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">Sekundärfarbe</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="color"
+                        value={data.secondaryColor || '#62B6CB'}
+                        onChange={(e) => onUpdate({ secondaryColor: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={data.secondaryColor || '#62B6CB'}
+                        onChange={(e) => onUpdate({ secondaryColor: e.target.value })}
+                        placeholder="#HEXCODE"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">Akzentfarbe</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="color"
+                        value={data.accentColor || '#BEE9E8'}
+                        onChange={(e) => onUpdate({ accentColor: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={data.accentColor || '#BEE9E8'}
+                        onChange={(e) => onUpdate({ accentColor: e.target.value })}
+                        placeholder="#HEXCODE"
+                      />
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => setShowColorPicker(false)}
+                  >
+                    Farbauswahl schließen
+                  </Button>
+                </div>
+              </Card>
+            ) : (
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setShowColorPicker(true)}
+              >
+                <Palette className="mr-2 h-4 w-4" />
+                Farben manuell definieren
+              </Button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

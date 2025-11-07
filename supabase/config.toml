@@ -1,1 +1,13 @@
 project_id = "jrxhhkxgihetmyolwtml"
+
+[functions.generate-slogans]
+verify_jwt = false
+
+[functions.extract-logo-colors]
+verify_jwt = false
+
+[functions.generate-mockups]
+verify_jwt = false
+
+[functions.generate-pdf]
+verify_jwt = false
