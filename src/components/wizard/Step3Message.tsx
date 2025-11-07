@@ -4,6 +4,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Step3MessageProps {
   data: any;
@@ -39,12 +41,36 @@ const Step3Message = ({ data, onUpdate }: Step3MessageProps) => {
     },
   };
 
-  const handleGenerateSlogans = (cluster: string, variant: string) => {
+  const handleGenerateSlogans = async (cluster: string, variant: string) => {
     setIsGenerating(true);
     onUpdate({ cluster, variant });
     
-    // Simulate AI generation
-    setTimeout(() => {
+    try {
+      const { data: slogansData, error } = await supabase.functions.invoke('generate-slogans', {
+        body: {
+          trade: data.trade,
+          cluster,
+          variant,
+          primaryColor: data.primaryColor,
+          secondaryColor: data.secondaryColor,
+          companyName: data.companyName,
+          city: data.address ? data.address.split(',').pop()?.trim() : 'Ihrer Region'
+        }
+      });
+
+      if (error) throw error;
+
+      if (slogansData?.slogans && Array.isArray(slogansData.slogans)) {
+        setGeneratedSlogans(slogansData.slogans);
+        toast.success('Slogans erfolgreich generiert');
+      } else {
+        throw new Error('Keine Slogans erhalten');
+      }
+    } catch (error) {
+      console.error('Error generating slogans:', error);
+      toast.error('Fehler beim Generieren der Slogans');
+      
+      // Fallback zu Mock-Daten
       const mockSlogans = [
         "Farbe im Blut? Starte bei uns.",
         "Deine Zukunft im Handwerk.",
@@ -53,8 +79,9 @@ const Step3Message = ({ data, onUpdate }: Step3MessageProps) => {
         "Gemeinsam farbenfroh.",
       ];
       setGeneratedSlogans(mockSlogans);
+    } finally {
       setIsGenerating(false);
-    }, 1500);
+    }
   };
 
   return (

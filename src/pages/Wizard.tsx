@@ -3,6 +3,8 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import Step1Trade from "@/components/wizard/Step1Trade";
 import Step1aContact from "@/components/wizard/Step1aContact";
 import Step2Design from "@/components/wizard/Step2Design";
@@ -55,11 +57,52 @@ const Wizard = () => {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < TOTAL_STEPS) {
       setCurrentStep(currentStep + 1);
     } else {
-      navigate('/review');
+      // Save project data to database before navigating to review
+      try {
+        const { data: project, error } = await supabase
+          .from('projects')
+          .insert([{
+            trade: projectData.trade,
+            company_name: projectData.companyName,
+            website: projectData.website,
+            phone: projectData.phone,
+            address: projectData.address,
+            logo_url: projectData.logoUrl,
+            primary_color: projectData.primaryColor,
+            secondary_color: projectData.secondaryColor,
+            accent_color: projectData.accentColor,
+            cluster: projectData.cluster,
+            variant: projectData.variant,
+            slogan_selected: projectData.selectedSlogan,
+            vehicle_enabled: projectData.vehicleEnabled,
+            vehicle_brand: projectData.vehicleBrand,
+            vehicle_model: projectData.vehicleModel,
+            vehicle_body: projectData.vehicleBody,
+            vehicle_wheelbase: projectData.vehicleWheelbase,
+            vehicle_roof: projectData.vehicleRoof,
+            scaffold_enabled: projectData.scaffoldEnabled,
+            scaffold_size: projectData.scaffoldSize,
+            scaffold_width_cm: projectData.scaffoldWidthCm,
+            scaffold_height_cm: projectData.scaffoldHeightCm,
+            fence_enabled: projectData.fenceEnabled,
+            fence_fields: projectData.fenceFields,
+            creativity_level: projectData.creativityLevel,
+            status: 'DRAFT'
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        navigate('/review', { state: { projectId: project.id, projectData } });
+      } catch (error) {
+        console.error('Error saving project:', error);
+        toast.error('Fehler beim Speichern des Projekts');
+      }
     }
   };
 
