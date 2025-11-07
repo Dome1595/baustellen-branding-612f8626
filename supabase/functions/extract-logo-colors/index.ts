@@ -21,8 +21,43 @@ serve(async (req) => {
 
     console.log('Extracting colors from logo:', logoUrl);
 
-    const prompt = `Analysiere dieses Logo und extrahiere die 3 Hauptfarben. 
+    // Step 1: Download the image from URL
+    const imageResponse = await fetch(logoUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to download image: ${imageResponse.status}`);
+    }
+    const imageBlob = await imageResponse.blob();
     
+    // Step 2: Upload to Langdock
+    const formData = new FormData();
+    formData.append('file', imageBlob, 'logo.png');
+    
+    const uploadResponse = await fetch('https://api.langdock.com/attachment/v1/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('Langdock upload error:', uploadResponse.status, errorText);
+      throw new Error(`Failed to upload to Langdock: ${uploadResponse.status}`);
+    }
+
+    const uploadData = await uploadResponse.json();
+    const attachmentId = uploadData.attachmentId;
+    
+    if (!attachmentId) {
+      throw new Error('No attachmentId returned from upload');
+    }
+
+    console.log('Image uploaded, attachmentId:', attachmentId);
+
+    // Step 3: Use attachmentId in chat completion
+    const prompt = `Analysiere dieses Logo und extrahiere die 3 Hauptfarben. 
+
 Gib die Farben als HEX-Codes zurück im Format:
 PRIMARY: #HEXCODE
 SECONDARY: #HEXCODE
@@ -46,10 +81,8 @@ Falls das Logo hauptsächlich schwarz/weiß ist, wähle passende professionelle 
         messages: [
           {
             role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: logoUrl } }
-            ]
+            content: prompt,
+            attachments: [attachmentId]
           }
         ],
         stream: false
