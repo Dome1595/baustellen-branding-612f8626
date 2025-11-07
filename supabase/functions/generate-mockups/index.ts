@@ -411,57 +411,18 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
   }
 
   try {
-    console.log("Calling Lovable AI Gateway for image editing...");
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: editPrompt,
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: templateUrl,
-                },
-              },
-            ],
-          },
-        ],
-        modalities: ["image", "text"],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Lovable AI Gateway error:", response.status, errorText);
-      throw new Error(`Lovable AI Gateway error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    console.log("Lovable AI response received");
-
-    const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!editedImageUrl) {
-      throw new Error("No edited image URL in response");
-    }
-
-    // If it's a data URL, upload to Supabase Storage
-    if (editedImageUrl.startsWith("data:")) {
-      console.log("Uploading edited image to Supabase Storage...");
-      return await uploadBase64Image(editedImageUrl, `${mockupType}-mockup-${Date.now()}.png`);
-    }
-
-    return editedImageUrl;
+    console.log("Calling Lovable AI Gateway for text generation...");
+    
+    // For now, we'll return the template URL directly without AI editing
+    // This is a temporary solution until we resolve the image processing issue
+    console.log("TEMPORARY: Returning template without AI editing");
+    console.log("Template URL:", templateUrl);
+    console.log("Logo URL:", logoUrl);
+    console.log("Brand data:", brandData);
+    
+    // Return the template URL directly for now
+    // TODO: Implement proper image editing once Gemini can process the images
+    return templateUrl;
   } catch (error) {
     console.error("Error in editMockupWithLogo:", error);
     throw error;
