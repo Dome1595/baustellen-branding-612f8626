@@ -346,40 +346,10 @@ async function optimizeImage(blob: Blob, maxWidth: number = 800, maxHeight: numb
   const sizeKB = blob.size / 1024;
   console.log(`[optimize] Original: ${sizeKB.toFixed(2)} KB`);
   
-  try {
-    const { Image } = await import("https://deno.land/x/imagescript@1.2.15/mod.ts");
-    const buffer = await blob.arrayBuffer();
-    const image = await Image.decode(new Uint8Array(buffer));
-    
-    console.log(`[optimize] Dimensions: ${image.width}x${image.height}`);
-    
-    // Calculate new dimensions (maintain aspect ratio)
-    let newWidth = image.width;
-    let newHeight = image.height;
-    
-    if (image.width > maxWidth || image.height > maxHeight) {
-      const widthRatio = maxWidth / image.width;
-      const heightRatio = maxHeight / image.height;
-      const ratio = Math.min(widthRatio, heightRatio);
-      
-      newWidth = Math.floor(image.width * ratio);
-      newHeight = Math.floor(image.height * ratio);
-      
-      console.log(`[optimize] Resizing to: ${newWidth}x${newHeight}`);
-    }
-    
-    const resized = image.resize(newWidth, newHeight);
-    const optimizedBuffer = await resized.encodeJPEG(85);
-    
-    const optimizedBlob = new Blob([new Uint8Array(optimizedBuffer)], { type: 'image/jpeg' });
-    const optimizedSizeKB = optimizedBlob.size / 1024;
-    
-    console.log(`[optimize] Result: ${optimizedSizeKB.toFixed(2)} KB (${((1 - optimizedSizeKB/sizeKB) * 100).toFixed(1)}% reduction)`);
-    return optimizedBlob;
-  } catch (error) {
-    console.error('[optimize] Failed:', error);
-    return blob; // Return original if optimization fails
-  }
+  // Don't try to optimize - just return original
+  // Nano Banana works better with original images
+  console.log(`[optimize] Using original image (Nano Banana works better with unmodified images)`);
+  return blob;
 }
 
 // Helper function to resize image if too large
@@ -612,17 +582,10 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
         throw new Error(`Failed to fetch template: ${templateResponse.status} - ${errorBody}`);
       }
       
-      let templateBlob = await templateResponse.blob();
+      const templateBlob = await templateResponse.blob();
       const templateSizeKB = (templateBlob.size / 1024).toFixed(1);
       const templateSizeMB = (templateBlob.size / (1024 * 1024)).toFixed(2);
       console.log(`✓ Template loaded: ${templateSizeKB} KB (${templateSizeMB} MB)`);
-      
-      // Optimize template on-the-fly to 800x600 JPEG
-      console.log("Optimizing template...");
-      onProgress?.("Template wird optimiert...");
-      templateBlob = await optimizeImage(templateBlob, 800, 600);
-      const optimizedSizeKB = (templateBlob.size / 1024).toFixed(2);
-      console.log(`✓ Template optimized to: ${optimizedSizeKB} KB`);
       
       onProgress?.("Logo wird geladen...");
       console.log("Fetching logo image from:", logoUrl);
@@ -802,14 +765,14 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
     try {
       console.log("Uploading template as preview fallback...");
       const timestamp = Date.now();
-      const filename = `mockup-${mockupType}-preview-${timestamp}.jpg`;
+      const filename = `mockup-${mockupType}-preview-${timestamp}.png`;
       
       // Fetch template again and upload as preview
       const templateResponse = await fetch(templateUrl);
       if (templateResponse.ok) {
         const templateBlob = await templateResponse.blob();
         const templateBase64 = await blobToBase64(templateBlob);
-        const previewUrl = await uploadBase64Image(templateBase64, filename);
+        const previewUrl = await uploadBase64Image(templateBase64, filename, "image/png");
         console.log("✓ Template uploaded as preview:", previewUrl);
         return previewUrl;
       }
@@ -853,7 +816,7 @@ async function resizeImage(blob: Blob, maxWidth: number = 1920, maxHeight: numbe
   return blob;
 }
 
-async function uploadBase64Image(base64Data: string, filename: string): Promise<string> {
+async function uploadBase64Image(base64Data: string, filename: string, contentType: string = "image/png"): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -866,7 +829,7 @@ async function uploadBase64Image(base64Data: string, filename: string): Promise<
   const { data, error } = await supabase.storage
     .from("mockups")
     .upload(filename, imageBuffer, {
-      contentType: "image/png",
+      contentType,
       upsert: false,
     });
 
