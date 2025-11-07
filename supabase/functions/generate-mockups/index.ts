@@ -149,180 +149,110 @@ async function generateImageWithLangdock(
   assistantId: string,
   logoUrl?: string
 ): Promise<string> {
-  const baseUrl = 'https://api.langdock.com/v1';
-  
   try {
-    console.log('Starting Langdock image generation...');
+    console.log('Starting Langdock image generation with assistant:', assistantId);
     
-    // 1. Create a thread
-    const threadResponse = await fetch(`${baseUrl}/threads`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!threadResponse.ok) {
-      const errorText = await threadResponse.text();
-      console.error('Thread creation failed:', threadResponse.status, errorText);
-      throw new Error(`Failed to create thread: ${threadResponse.status}`);
-    }
-
-    const thread = await threadResponse.json();
-    const threadId = thread.id;
-    console.log('Thread created:', threadId);
-
-    // 2. Build message content with logo if provided
-    let messageContent = prompt;
-    const attachments = [];
-
+    // Build prompt with logo reference if provided
+    let fullPrompt = prompt;
     if (logoUrl) {
-      messageContent = `${prompt}\n\nIMPORTANT: Use the attached logo image in the mockup design.`;
-      // Note: Langdock attachments would need to be uploaded separately
-      // For now, we'll include the logo URL in the prompt
-      messageContent = `${prompt}\n\nLogo URL: ${logoUrl}`;
+      fullPrompt = `${prompt}\n\nIMPORTANT: The company logo is available at: ${logoUrl}\nPlease incorporate this logo into the mockup design.`;
     }
 
-    // 3. Add message to thread
-    const messageResponse = await fetch(`${baseUrl}/threads/${threadId}/messages`, {
+    // Call Langdock Assistant API
+    const response = await fetch('https://api.langdock.com/assistant/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        role: 'user',
-        content: messageContent,
+        assistantId: assistantId,
+        messages: [
+          {
+            role: 'user',
+            content: fullPrompt
+          }
+        ],
+        stream: false
       }),
     });
 
-    if (!messageResponse.ok) {
-      const errorText = await messageResponse.text();
-      console.error('Message creation failed:', messageResponse.status, errorText);
-      throw new Error(`Failed to create message: ${messageResponse.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Langdock API error:', response.status, errorText);
+      throw new Error(`Langdock API failed: ${response.status} - ${errorText}`);
     }
 
-    console.log('Message added to thread');
+    const data = await response.json();
+    console.log('Langdock response structure:', JSON.stringify({
+      hasResult: !!data.result,
+      hasOutput: !!data.output,
+      resultLength: data.result?.length,
+      fullResponse: data
+    }, null, 2));
 
-    // 4. Create and run the assistant
-    const runResponse = await fetch(`${baseUrl}/threads/${threadId}/runs`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        assistant_id: assistantId,
-      }),
-    });
-
-    if (!runResponse.ok) {
-      const errorText = await runResponse.text();
-      console.error('Run creation failed:', runResponse.status, errorText);
-      throw new Error(`Failed to create run: ${runResponse.status}`);
-    }
-
-    const run = await runResponse.json();
-    const runId = run.id;
-    console.log('Run created:', runId);
-
-    // 5. Poll for completion
-    let runStatus = run.status;
-    let attempts = 0;
-    const maxAttempts = 60; // 2 minutes timeout (2 seconds * 60)
-
-    while (runStatus !== 'completed' && runStatus !== 'failed' && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-      
-      const statusResponse = await fetch(`${baseUrl}/threads/${threadId}/runs/${runId}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
-      });
-
-      if (!statusResponse.ok) {
-        throw new Error(`Failed to check run status: ${statusResponse.status}`);
-      }
-
-      const statusData = await statusResponse.json();
-      runStatus = statusData.status;
-      attempts++;
-      
-      console.log(`Run status: ${runStatus} (attempt ${attempts}/${maxAttempts})`);
-    }
-
-    if (runStatus !== 'completed') {
-      throw new Error(`Run did not complete. Final status: ${runStatus}`);
-    }
-
-    // 6. Retrieve messages to get the generated image
-    const messagesResponse = await fetch(`${baseUrl}/threads/${threadId}/messages`, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-    });
-
-    if (!messagesResponse.ok) {
-      throw new Error(`Failed to retrieve messages: ${messagesResponse.status}`);
-    }
-
-    const messagesData = await messagesResponse.json();
-    console.log('Messages retrieved:', JSON.stringify(messagesData, null, 2));
-
-    // Find the assistant's response with image
-    const assistantMessages = messagesData.data.filter((msg: any) => msg.role === 'assistant');
-    
-    if (assistantMessages.length === 0) {
-      throw new Error('No assistant response found');
-    }
-
-    // Look for image in content or attachments
-    const lastMessage = assistantMessages[0];
-    
-    // Check for image in content array
-    if (Array.isArray(lastMessage.content)) {
-      for (const item of lastMessage.content) {
-        if (item.type === 'image_url' && item.image_url?.url) {
-          console.log('Image URL found in content');
-          return item.image_url.url;
+    // Extract image URL from response
+    // Check result array for image content
+    if (data.result && Array.isArray(data.result)) {
+      for (const item of data.result) {
+        // Check for assistant role with image content
+        if (item.role === 'assistant' && Array.isArray(item.content)) {
+          for (const contentItem of item.content) {
+            // Look for image_url type
+            if (contentItem.type === 'image_url' && contentItem.image_url?.url) {
+              console.log('Found image URL in assistant content');
+              return contentItem.image_url.url;
+            }
+            // Look for image_file type
+            if (contentItem.type === 'image_file' && contentItem.image_file?.url) {
+              console.log('Found image file URL in assistant content');
+              return contentItem.image_file.url;
+            }
+            // Check if content item has url directly
+            if (contentItem.url && typeof contentItem.url === 'string') {
+              console.log('Found direct URL in content item');
+              return contentItem.url;
+            }
+          }
         }
-        if (item.type === 'image_file' && item.image_file?.file_id) {
-          // Download file from Langdock
-          const fileId = item.image_file.file_id;
-          const fileUrl = `${baseUrl}/files/${fileId}/content`;
-          console.log('Image file ID found:', fileId);
-          return fileUrl; // This would need additional auth handling
+        
+        // Check tool results for images
+        if (item.role === 'tool' && Array.isArray(item.content)) {
+          for (const contentItem of item.content) {
+            if (contentItem.result?.imageUrl) {
+              console.log('Found image URL in tool result');
+              return contentItem.result.imageUrl;
+            }
+            if (contentItem.result?.url) {
+              console.log('Found URL in tool result');
+              return contentItem.result.url;
+            }
+          }
         }
       }
     }
 
-    // Check for attachments
-    if (lastMessage.attachments && lastMessage.attachments.length > 0) {
-      const imageAttachment = lastMessage.attachments.find((att: any) => 
-        att.type === 'image' || att.content_type?.startsWith('image/')
-      );
-      
-      if (imageAttachment?.url) {
-        console.log('Image URL found in attachments');
-        return imageAttachment.url;
+    // Check output object for image
+    if (data.output) {
+      if (data.output.imageUrl) {
+        console.log('Found image URL in output');
+        return data.output.imageUrl;
       }
-    }
-
-    // If content is a string, check if it contains a base64 image
-    if (typeof lastMessage.content === 'string') {
-      if (lastMessage.content.includes('data:image')) {
-        const base64Match = lastMessage.content.match(/data:image\/[^;]+;base64,[^\s"]+/);
-        if (base64Match) {
-          console.log('Base64 image found in text content');
-          return base64Match[0];
+      if (data.output.url) {
+        console.log('Found URL in output');
+        return data.output.url;
+      }
+      // Check if output is a string with base64 or URL
+      if (typeof data.output === 'string') {
+        if (data.output.startsWith('http') || data.output.startsWith('data:image')) {
+          console.log('Found image in output string');
+          return data.output;
         }
       }
     }
 
-    console.error('No image found in response. Last message:', JSON.stringify(lastMessage, null, 2));
-    throw new Error('No image URL found in assistant response');
+    console.error('No image found in Langdock response. Full response:', JSON.stringify(data, null, 2));
+    throw new Error('No image URL found in assistant response. Please ensure the assistant is configured with image generation capability.');
 
   } catch (error) {
     console.error('Langdock generation error:', error);
