@@ -46,6 +46,9 @@ function generatePDFHTML(projectData: any, mockups: any[]): string {
   const primaryColor = projectData?.primaryColor || projectData?.primary_color || '#1B4965';
   const secondaryColor = projectData?.secondaryColor || projectData?.secondary_color || '#62B6CB';
   const accentColor = projectData?.accentColor || projectData?.accent_color || '#BEE9E8';
+  const phone = projectData?.phone || '';
+  const website = projectData?.website || '';
+  const address = projectData?.address || '';
   
   return `<!DOCTYPE html>
 <html>
@@ -54,8 +57,8 @@ function generatePDFHTML(projectData: any, mockups: any[]): string {
   <title>Baustellen-Branding Paket - ${companyName}</title>
   <style>
     @page {
-      size: A4;
-      margin: 2cm;
+      size: A4 landscape;
+      margin: 0;
     }
     * {
       margin: 0;
@@ -70,9 +73,41 @@ function generatePDFHTML(projectData: any, mockups: any[]): string {
     }
     .page {
       page-break-after: always;
-      padding: 20px;
-      max-width: 800px;
-      margin: 0 auto;
+      width: 297mm;
+      height: 210mm;
+      position: relative;
+    }
+    .cover-page {
+      background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px;
+    }
+    .cover-title {
+      font-size: 48px;
+      font-weight: bold;
+      color: #1a1a1a;
+      margin-bottom: 40px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .cover-artwork {
+      width: 60%;
+      max-width: 600px;
+      margin: 40px 0;
+      filter: drop-shadow(0 10px 30px rgba(0,0,0,0.2));
+    }
+    .cover-tagline {
+      font-size: 32px;
+      color: #4a4a4a;
+      margin-top: 40px;
+      font-weight: 300;
+    }
+    .content-page {
+      padding: 60px 80px;
     }
     .header {
       text-align: center;
@@ -82,7 +117,7 @@ function generatePDFHTML(projectData: any, mockups: any[]): string {
     }
     h1 {
       color: ${primaryColor};
-      font-size: 32px;
+      font-size: 36px;
       margin-bottom: 10px;
     }
     h2 {
@@ -180,10 +215,22 @@ function generatePDFHTML(projectData: any, mockups: any[]): string {
   </style>
 </head>
 <body>
-  <div class="page">
+  <!-- Cover Page -->
+  <div class="page cover-page">
+    <div class="cover-title">
+      Ihr individuelles<br>BAUSTELLEN-BRANDING-PAKET
+    </div>
+    <img src="/assets/cover.png" alt="Design" class="cover-artwork" />
+    <div class="cover-tagline">
+      mit modernster KI entwickelt
+    </div>
+  </div>
+
+  <!-- Details Page -->
+  <div class="page content-page">
     <div class="header">
-      <h1>Baustellen-Branding Paket</h1>
-      <p style="font-size: 18px; color: #666;">Ihr professionelles Branding-Konzept</p>
+      <h1>Ihr Baustellen-Branding Paket</h1>
+      <p style="font-size: 18px; color: #666;">Professionelles Branding-Konzept für ${companyName}</p>
     </div>
 
     <h2>Unternehmensdetails</h2>
@@ -192,10 +239,22 @@ function generatePDFHTML(projectData: any, mockups: any[]): string {
         <div class="info-label">Unternehmen</div>
         <div class="info-value">${companyName}</div>
       </div>
-      <div class="info-item">
+      ${projectData?.trade ? `<div class="info-item">
         <div class="info-label">Branche</div>
-        <div class="info-value">${projectData?.trade || 'N/A'}</div>
-      </div>
+        <div class="info-value">${projectData.trade}</div>
+      </div>` : ''}
+      ${phone ? `<div class="info-item">
+        <div class="info-label">Telefon</div>
+        <div class="info-value">${phone}</div>
+      </div>` : ''}
+      ${website ? `<div class="info-item">
+        <div class="info-label">Website</div>
+        <div class="info-value">${website}</div>
+      </div>` : ''}
+      ${address ? `<div class="info-item">
+        <div class="info-label">Adresse</div>
+        <div class="info-value">${address}</div>
+      </div>` : ''}
     </div>
 
     <div class="slogan">"${slogan}"</div>
@@ -233,7 +292,7 @@ function generatePDFHTML(projectData: any, mockups: any[]): string {
   </div>
 
   ${mockups && mockups.length > 0 ? `
-  <div class="page">
+  <div class="page content-page">
     <h2>Mockup-Vorschau</h2>
     <div class="mockup-grid">
       ${mockups.map(mockup => `
