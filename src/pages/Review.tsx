@@ -231,9 +231,19 @@ const Review = () => {
                         src={mockup.url}
                         alt={mockup.title}
                         className="h-48 w-full object-cover"
+                        crossOrigin="anonymous"
                         onError={(e) => {
                           console.error('Error loading mockup image:', mockup.url);
+                          // Hide the broken image
                           e.currentTarget.style.display = 'none';
+                          // Show fallback text
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            const fallback = document.createElement('div');
+                            fallback.className = 'h-48 w-full bg-muted flex items-center justify-center p-4';
+                            fallback.innerHTML = `<p class="text-center text-sm text-muted-foreground">Template: ${mockup.title}<br/><span class="text-xs">Mockup-Generierung in Entwicklung</span></p>`;
+                            parent.insertBefore(fallback, e.currentTarget);
+                          }
                         }}
                       />
                     ) : (
@@ -243,7 +253,7 @@ const Review = () => {
                     )}
                     <div className="p-4">
                       <h3 className="font-semibold">{mockup.title}</h3>
-                      <p className="text-sm text-muted-foreground">KI-generiert</p>
+                      <p className="text-sm text-muted-foreground">Template verfügbar</p>
                     </div>
                   </Card>
                 ))}
