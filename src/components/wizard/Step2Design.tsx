@@ -2,7 +2,9 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Upload, Check } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Step2DesignProps {
   data: any;
@@ -11,6 +13,52 @@ interface Step2DesignProps {
 
 const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Bitte laden Sie ein gültiges Logo-Format hoch (SVG, PNG, JPG oder PDF)');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Die Datei ist zu groß. Maximale Größe: 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = fileName;
+
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('logos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('logos')
+        .getPublicUrl(filePath);
+
+      onUpdate({ logoUrl: publicUrl, logoFileName: file.name });
+      toast.success('Logo erfolgreich hochgeladen');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Fehler beim Hochladen des Logos');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const suggestedColors = [
     { primary: "#2B7A78", secondary: "#17252A", accent: "#3AAFA9" },
@@ -30,20 +78,34 @@ const Step2Design = ({ data, onUpdate }: Step2DesignProps) => {
         </p>
 
         <Card className="border-2 border-dashed p-8">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".svg,.png,.jpg,.jpeg,.pdf"
+            className="hidden"
+            onChange={handleLogoUpload}
+          />
           {!data.logoUrl ? (
             <div className="text-center">
               <Upload className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
               <p className="mb-4 text-sm text-muted-foreground">
                 Ziehen Sie Ihr Logo hierher oder klicken Sie zum Auswählen
               </p>
-              <Button>Logo hochladen</Button>
+              <Button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+              >
+                {isUploading ? 'Wird hochgeladen...' : 'Logo hochladen'}
+              </Button>
             </div>
           ) : (
             <div className="flex items-center gap-4">
-              <div className="h-20 w-20 rounded bg-muted"></div>
+              <div className="h-20 w-20 rounded bg-muted flex items-center justify-center overflow-hidden">
+                <img src={data.logoUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
+              </div>
               <div className="flex-1">
                 <p className="font-medium">Logo erfolgreich hochgeladen</p>
-                <p className="text-sm text-muted-foreground">logo.svg • 2400x1200px</p>
+                <p className="text-sm text-muted-foreground">{data.logoFileName || 'logo'}</p>
               </div>
               <Check className="h-6 w-6 text-primary" />
             </div>
