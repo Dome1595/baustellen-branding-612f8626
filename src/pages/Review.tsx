@@ -7,25 +7,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-// Import templates for preview
-import fordTemplate from "@/assets/templates/ford-transporter.png";
-import vwTemplate from "@/assets/templates/vw-transporter.png";
-import mercedesSprinterTemplate from "@/assets/templates/mercedes-sprinter.png";
-import mercedesTransporterTemplate from "@/assets/templates/mercedes-transporter.png";
-import scaffoldTemplate from "@/assets/templates/scaffold-banner.png";
-import fenceTemplate from "@/assets/templates/fence-banner.png";
-
-const TEMPLATE_PREVIEW_MAP: Record<string, string> = {
-  "ford": fordTemplate,
-  "vw": vwTemplate,
-  "volkswagen": vwTemplate,
-  "mercedes-sprinter": mercedesSprinterTemplate,
-  "mercedes-transporter": mercedesTransporterTemplate,
-  "mercedes": mercedesTransporterTemplate,
-  "scaffold": scaffoldTemplate,
-  "fence": fenceTemplate,
-};
-
 const Review = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,8 +14,6 @@ const Review = () => {
   const [mockups, setMockups] = useState<any[]>([]);
   const [isGeneratingMockups, setIsGeneratingMockups] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [isUploadingTemplates, setIsUploadingTemplates] = useState(false);
-  const [progressMessage, setProgressMessage] = useState<string>("");
 
   useEffect(() => {
     if (!projectData) {
@@ -43,108 +22,28 @@ const Review = () => {
       return;
     }
 
-    // Upload templates first, then generate mockups
-    uploadTemplatesViaFunction();
+    // Generate mockups
+    generateMockups();
   }, [projectData, navigate]);
 
-  const uploadTemplatesViaFunction = async () => {
-    setIsUploadingTemplates(true);
-    console.log("Uploading templates via edge function...");
-
+  const generateMockups = async () => {
+    setIsGeneratingMockups(true);
     try {
-      const { data, error } = await supabase.functions.invoke('upload-templates', {
+      const { data, error } = await supabase.functions.invoke('generate-mockups', {
         body: { projectData }
       });
 
       if (error) throw error;
 
-      if (data?.success) {
-        console.log("Templates uploaded successfully:", data);
-        toast.success(`${data.uploaded} Templates hochgeladen`);
-        await generateMockups();
-      } else {
-        console.error("Template upload failed:", data);
-        toast.error("Fehler beim Upload der Templates");
-      }
-    } catch (error) {
-      console.error("Error uploading templates:", error);
-      toast.error("Fehler beim Upload der Templates");
-    } finally {
-      setIsUploadingTemplates(false);
-    }
-  };
-
-  const generateMockups = async () => {
-    setIsGeneratingMockups(true);
-    setProgressMessage("Mockup-Generierung startet...");
-    
-    try {
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-mockups`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ projectData, stream: true })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Mockup generation failed:', response.status, errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedMockups: any[] = [];
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                
-                if (data.progress) {
-                  setProgressMessage(data.progress);
-                }
-                
-                if (data.mockups) {
-                  accumulatedMockups = data.mockups;
-                  setMockups(data.mockups);
-                }
-                
-                if (data.done) {
-                  toast.success('Mockups erfolgreich generiert');
-                }
-                
-                if (data.error) {
-                  console.error('Mockup generation error:', data.error);
-                  toast.error('Fehler: ' + data.error);
-                }
-              } catch (e) {
-                console.error('Error parsing SSE data:', e);
-              }
-            }
-          }
-        }
+      if (data?.mockups) {
+        setMockups(data.mockups);
+        toast.success('Mockups erfolgreich generiert');
       }
     } catch (error) {
       console.error('Error generating mockups:', error);
       toast.error('Fehler beim Generieren der Mockups');
     } finally {
       setIsGeneratingMockups(false);
-      setProgressMessage("");
     }
   };
 
@@ -266,66 +165,42 @@ const Review = () => {
           <Card className="mb-8 p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-2xl font-semibold">Mockup-Vorschau</h2>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={generateMockups}
-                  disabled={isGeneratingMockups || isUploadingTemplates}
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4 rotate-180" />
-                  Neu generieren
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(-1)}
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Änderungen vornehmen
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(-1)}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Änderungen vornehmen
+              </Button>
             </div>
 
-            {isUploadingTemplates ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-4">
+            {isGeneratingMockups ? (
+              <div className="flex items-center justify-center py-12">
                 <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                <p className="text-muted-foreground">Templates werden vorbereitet...</p>
-              </div>
-            ) : isGeneratingMockups ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-4">
-                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                <p className="text-muted-foreground font-medium">{progressMessage || "Mockups werden generiert..."}</p>
-                {progressMessage && (
-                  <p className="text-sm text-muted-foreground">Dies kann einige Sekunden dauern...</p>
-                )}
               </div>
             ) : mockups.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-3">
                 {mockups.map((mockup, index) => (
                   <Card key={index} className="overflow-hidden">
-                     <img
-                      src={mockup.url}
-                      alt={mockup.title}
-                      className="h-48 w-full object-cover"
-                      onError={(e) => {
-                        console.error('Error loading mockup image:', mockup.url);
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
+                    {mockup.url ? (
+                      <img
+                        src={mockup.url}
+                        alt={mockup.title}
+                        className="h-48 w-full object-cover"
+                        onError={(e) => {
+                          console.error('Error loading mockup image:', mockup.url);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="h-48 w-full bg-muted flex items-center justify-center">
+                        <p className="text-muted-foreground">Mockup wird generiert...</p>
+                      </div>
+                    )}
                     <div className="p-4">
                       <h3 className="font-semibold">{mockup.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {mockup.url.includes('mockup-templates') 
-                          ? 'Template-Vorschau' 
-                          : 'Mit Logo & Text bearbeitet'}
-                      </p>
-                      {mockup.url.includes('mockup-templates') && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Logo & Text-Integration in Entwicklung
-                        </p>
-                      )}
+                      <p className="text-sm text-muted-foreground">KI-generiert</p>
                     </div>
                   </Card>
                 ))}
@@ -341,7 +216,7 @@ const Review = () => {
             <Button 
               size="lg" 
               onClick={handleGeneratePdf}
-              disabled={isGeneratingPdf || isGeneratingMockups || isUploadingTemplates}
+              disabled={isGeneratingPdf || isGeneratingMockups}
             >
               <Download className="mr-2 h-5 w-5" />
               {isGeneratingPdf ? 'PDF wird generiert...' : 'PDF jetzt generieren'}

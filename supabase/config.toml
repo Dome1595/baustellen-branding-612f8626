@@ -11,6 +11,3 @@ verify_jwt = false
 
 [functions.generate-pdf]
 verify_jwt = false
-
-[functions.upload-templates]
-verify_jwt = false

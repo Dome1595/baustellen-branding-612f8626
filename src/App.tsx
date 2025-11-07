@@ -7,8 +7,6 @@ import Index from "./pages/Index";
 import Wizard from "./pages/Wizard";
 import Review from "./pages/Review";
 import Export from "./pages/Export";
-import UploadTemplates from "./pages/UploadTemplates";
-import InitializeTemplates from "./pages/InitializeTemplates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,8 +22,6 @@ const App = () => (
           <Route path="/wizard" element={<Wizard />} />
           <Route path="/review" element={<Review />} />
           <Route path="/export" element={<Export />} />
-          <Route path="/upload-templates" element={<UploadTemplates />} />
-          <Route path="/initialize-templates" element={<InitializeTemplates />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
