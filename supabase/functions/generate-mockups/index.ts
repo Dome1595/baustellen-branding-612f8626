@@ -411,18 +411,70 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
   }
 
   try {
-    console.log("Calling Lovable AI Gateway for text generation...");
+    console.log("Calling Lovable AI Gateway for image editing...");
     
-    // For now, we'll return the template URL directly without AI editing
-    // This is a temporary solution until we resolve the image processing issue
-    console.log("TEMPORARY: Returning template without AI editing");
-    console.log("Template URL:", templateUrl);
-    console.log("Logo URL:", logoUrl);
-    console.log("Brand data:", brandData);
+    // Call Lovable AI Gateway with Nano Banana for image editing
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: editPrompt
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: templateUrl
+                }
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: logoUrl
+                }
+              }
+            ]
+          }
+        ],
+        modalities: ["image", "text"]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Lovable AI Gateway error:", response.status, errorText);
+      throw new Error(`AI Gateway error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log("Lovable AI response received");
+
+    // Extract the edited image
+    const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     
-    // Return the template URL directly for now
-    // TODO: Implement proper image editing once Gemini can process the images
-    return templateUrl;
+    if (!editedImageUrl) {
+      console.error("No image returned from AI Gateway");
+      throw new Error("No image returned from AI Gateway");
+    }
+
+    console.log("Image edited successfully, uploading to storage...");
+
+    // Upload the base64 image to Supabase Storage
+    const timestamp = Date.now();
+    const filename = `mockup-${mockupType}-${timestamp}.png`;
+    const uploadedUrl = await uploadBase64Image(editedImageUrl, filename);
+    
+    console.log("Mockup uploaded successfully:", uploadedUrl);
+    return uploadedUrl;
   } catch (error) {
     console.error("Error in editMockupWithLogo:", error);
     throw error;
