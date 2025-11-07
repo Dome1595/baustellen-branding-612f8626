@@ -195,7 +195,7 @@ async function editMockupWithLogo(
 
     console.log('Editing mockup with Lovable AI. Base mockup:', baseMockupUrl);
     
-    // Build editing prompt
+    // Build optimized editing prompt for maximum quality
     const styleDescription = brandData.creativityLevel === 3 
       ? 'modern, creative, and dynamic style' 
       : brandData.creativityLevel === 2 
@@ -203,31 +203,119 @@ async function editMockupWithLogo(
       : 'traditional and conservative style';
     
     const editPrompt = logoUrl 
-      ? `Professional vehicle/construction branding mockup editing task:
+      ? `PROFESSIONAL VEHICLE/CONSTRUCTION BRANDING - HIGH QUALITY MOCKUP EDITING
 
-1. Fetch and use the company logo from: ${logoUrl}
-2. Place the logo prominently and professionally on the mockup
-3. Add company name "${brandData.companyName}" in LARGE, BOLD, clearly readable lettering using color ${brandData.primaryColor}
-4. Add slogan "${brandData.slogan}" below the company name in a complementary professional font
-5. Add contact information "${brandData.contact}" in smaller but readable text
-6. Use ${styleDescription} for the overall design
-7. Apply brand colors ${brandData.primaryColor} and ${brandData.secondaryColor} throughout
-8. Ensure ALL text is crystal clear, sharp, and highly legible
-9. Make the design look like professional vinyl graphics/printing
+**CRITICAL QUALITY REQUIREMENTS:**
+- Output must be ULTRA HIGH RESOLUTION with razor-sharp clarity
+- ALL text must be CRYSTAL CLEAR, perfectly sharp, and 100% readable
+- Logo must maintain perfect quality and clarity
+- Colors must be vibrant, accurate, and professionally rendered
+- Final result must look like premium professional vinyl graphics/wrapping
 
-CRITICAL: All text must be perfectly readable. The logo should be integrated naturally. The final result should look like a professional branding application.`
-      : `Professional vehicle/construction branding mockup editing task:
+**STEP-BY-STEP BRANDING INSTRUCTIONS:**
 
-1. Add company name "${brandData.companyName}" in LARGE, BOLD, clearly readable lettering using color ${brandData.primaryColor}
-2. Add a simple professional logo icon/symbol that represents the company
-3. Add slogan "${brandData.slogan}" below the company name in a complementary professional font
-4. Add contact information "${brandData.contact}" in smaller but readable text
-5. Use ${styleDescription} for the overall design
-6. Apply brand colors ${brandData.primaryColor} and ${brandData.secondaryColor} throughout
-7. Ensure ALL text is crystal clear, sharp, and highly legible
-8. Make the design look like professional vinyl graphics/printing
+1. LOGO INTEGRATION:
+   - Fetch the company logo from: ${logoUrl}
+   - Maintain ORIGINAL logo quality - no degradation or blur
+   - Place logo prominently on the vehicle/surface (upper left or center area)
+   - Size: Logo should be clearly visible but proportional (15-20% of branding area)
+   - Ensure logo has perfect clarity and sharp edges
 
-CRITICAL: All text must be perfectly readable. The final result should look like a professional branding application.`;
+2. COMPANY NAME:
+   - Text: "${brandData.companyName}"
+   - Font: BOLD, EXTRA LARGE, ultra-professional sans-serif typeface
+   - Color: EXACT color ${brandData.primaryColor} (apply precisely)
+   - Position: Next to or below logo as main focal point
+   - Size: 2-3x larger than slogan - this is the PRIMARY element
+   - Quality: Text must be RAZOR SHARP with perfect anti-aliasing
+
+3. SLOGAN:
+   - Text: "${brandData.slogan}"
+   - Font: Professional complementary font, medium weight
+   - Color: ${brandData.secondaryColor} or subtle variant of primary
+   - Position: Directly below company name with proper spacing
+   - Size: Medium - clearly readable from distance
+   - Quality: SHARP and perfectly legible
+
+4. CONTACT INFORMATION:
+   - Text: ${brandData.contact}
+   - Font: Clean, professional, highly readable
+   - Color: ${brandData.primaryColor} or contrasting color for visibility
+   - Position: Lower area or bottom right of branding space
+   - Size: Smaller but still easily readable
+   - Quality: Sharp and clear
+
+5. DESIGN STYLE:
+   - Overall aesthetic: ${styleDescription}
+   - Layout: Professional, balanced, with proper white space
+   - Hierarchy: Logo + Company Name (primary) → Slogan (secondary) → Contact (tertiary)
+   - Colors: Use ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
+   - Integration: Make branding look like real vinyl wrap/decals with subtle shadows and reflections matching the vehicle surface
+
+6. QUALITY ASSURANCE:
+   - Text rendering: ULTRA SHARP - no blur, no pixelation
+   - Logo quality: PRISTINE - maintain original resolution and clarity
+   - Color accuracy: EXACT match to specified hex colors
+   - Professional finish: Must look like $5000+ professional vehicle wrap job
+   - Realism: Subtle reflections, proper shadows, vinyl texture where appropriate
+
+FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, and professionally executed.`
+      : `PROFESSIONAL VEHICLE/CONSTRUCTION BRANDING - HIGH QUALITY MOCKUP EDITING
+
+**CRITICAL QUALITY REQUIREMENTS:**
+- Output must be ULTRA HIGH RESOLUTION with razor-sharp clarity
+- ALL text must be CRYSTAL CLEAR, perfectly sharp, and 100% readable
+- Colors must be vibrant, accurate, and professionally rendered
+- Final result must look like premium professional vinyl graphics/wrapping
+
+**STEP-BY-STEP BRANDING INSTRUCTIONS:**
+
+1. LOGO CREATION:
+   - Create a simple, professional logo icon/symbol representing construction/trades
+   - Style: Clean, modern, and memorable
+   - Color: Use ${brandData.primaryColor}
+   - Position: Upper left or center area of branding space
+   - Size: Prominent but proportional (15-20% of branding area)
+   - Quality: SHARP vector-style clarity
+
+2. COMPANY NAME:
+   - Text: "${brandData.companyName}"
+   - Font: BOLD, EXTRA LARGE, ultra-professional sans-serif typeface
+   - Color: EXACT color ${brandData.primaryColor} (apply precisely)
+   - Position: Next to or below logo as main focal point
+   - Size: 2-3x larger than slogan - this is the PRIMARY element
+   - Quality: Text must be RAZOR SHARP with perfect anti-aliasing
+
+3. SLOGAN:
+   - Text: "${brandData.slogan}"
+   - Font: Professional complementary font, medium weight
+   - Color: ${brandData.secondaryColor} or subtle variant of primary
+   - Position: Directly below company name with proper spacing
+   - Size: Medium - clearly readable from distance
+   - Quality: SHARP and perfectly legible
+
+4. CONTACT INFORMATION:
+   - Text: ${brandData.contact}
+   - Font: Clean, professional, highly readable
+   - Color: ${brandData.primaryColor} or contrasting color for visibility
+   - Position: Lower area or bottom right of branding space
+   - Size: Smaller but still easily readable
+   - Quality: Sharp and clear
+
+5. DESIGN STYLE:
+   - Overall aesthetic: ${styleDescription}
+   - Layout: Professional, balanced, with proper white space
+   - Hierarchy: Logo + Company Name (primary) → Slogan (secondary) → Contact (tertiary)
+   - Colors: Use ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
+   - Integration: Make branding look like real vinyl wrap/decals with subtle shadows and reflections
+
+6. QUALITY ASSURANCE:
+   - Text rendering: ULTRA SHARP - no blur, no pixelation
+   - Color accuracy: EXACT match to specified hex colors
+   - Professional finish: Must look like $5000+ professional vehicle wrap job
+   - Realism: Subtle reflections, proper shadows, vinyl texture where appropriate
+
+FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, and professionally executed.`;
 
     // Call Lovable AI Gateway with image editing
     const messages: any[] = [
