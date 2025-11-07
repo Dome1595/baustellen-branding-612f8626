@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { Image } from "https://deno.land/x/imagescript@1.2.15/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,13 +43,14 @@ serve(async (req) => {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
+        const arrayBuffer = await response.arrayBuffer();
+        const originalSize = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(2);
+        console.log(`Original size: ${originalSize} MB`);
+
+        // Upload original version
+        console.log(`Uploading original ${filename}...`);
         const uint8Array = new Uint8Array(arrayBuffer);
-
-        console.log(`Uploading ${filename} to Supabase Storage...`);
-
-        // Upload to Supabase Storage
+        
         const { error: uploadError } = await supabase.storage
           .from("mockup-templates")
           .upload(filename, uint8Array, {
@@ -60,12 +62,68 @@ serve(async (req) => {
           throw uploadError;
         }
 
-        // Get public URL
+        // Get original public URL
         const { data: { publicUrl } } = supabase.storage
           .from("mockup-templates")
           .getPublicUrl(filename);
 
         results[filename] = publicUrl;
+        
+        // Create optimized version
+        console.log(`Creating optimized version of ${filename}...`);
+        
+        try {
+          // Decode image
+          const image = await Image.decode(new Uint8Array(arrayBuffer));
+          console.log(`Original dimensions: ${image.width}x${image.height}`);
+          
+          // Calculate new dimensions (max width 1024px, maintain aspect ratio)
+          const maxWidth = 1024;
+          let newWidth = image.width;
+          let newHeight = image.height;
+          
+          if (image.width > maxWidth) {
+            const ratio = maxWidth / image.width;
+            newWidth = maxWidth;
+            newHeight = Math.round(image.height * ratio);
+          }
+          
+          console.log(`Resizing to: ${newWidth}x${newHeight}`);
+          
+          // Resize image
+          const resized = image.resize(newWidth, newHeight);
+          
+          // Encode to PNG with compression
+          const optimizedBuffer = await resized.encode(0); // 0 = PNG with compression
+          const optimizedSize = (optimizedBuffer.byteLength / (1024 * 1024)).toFixed(2);
+          console.log(`Optimized size: ${optimizedSize} MB (${((1 - optimizedBuffer.byteLength / arrayBuffer.byteLength) * 100).toFixed(1)}% smaller)`);
+          
+          // Upload optimized version
+          const optimizedFilename = filename.replace('.png', '-optimized.png');
+          console.log(`Uploading optimized ${optimizedFilename}...`);
+          
+          const { error: optimizedUploadError } = await supabase.storage
+            .from("mockup-templates")
+            .upload(optimizedFilename, optimizedBuffer, {
+              contentType: "image/png",
+              upsert: true,
+            });
+
+          if (optimizedUploadError) {
+            console.warn(`Failed to upload optimized version: ${optimizedUploadError.message}`);
+          } else {
+            const { data: { publicUrl: optimizedUrl } } = supabase.storage
+              .from("mockup-templates")
+              .getPublicUrl(optimizedFilename);
+            
+            results[optimizedFilename] = optimizedUrl;
+            console.log(`✓ Optimized ${optimizedFilename} uploaded: ${optimizedUrl}`);
+          }
+        } catch (optimizeError) {
+          console.warn(`Failed to optimize ${filename}:`, optimizeError);
+          // Continue with original version
+        }
+
         successCount++;
         console.log(`✓ ${filename} uploaded successfully: ${publicUrl}`);
       } catch (error) {
