@@ -152,16 +152,57 @@ async function generateImageWithLangdock(
   try {
     console.log('Starting Langdock image generation with assistant:', assistantId);
     
-    // Build message content with attachmentIds for logo if provided
+    let attachmentId: string | undefined;
+    
+    // If logo is provided, upload it to Langdock first
+    if (logoUrl) {
+      const fullLogoUrl = logoUrl.startsWith('http') ? logoUrl : `https://${logoUrl}`;
+      console.log('Uploading logo to Langdock:', fullLogoUrl);
+      
+      try {
+        // Fetch the logo file
+        const logoResponse = await fetch(fullLogoUrl);
+        if (!logoResponse.ok) {
+          console.error('Failed to fetch logo:', logoResponse.status);
+        } else {
+          const logoBlob = await logoResponse.blob();
+          
+          // Upload to Langdock
+          const formData = new FormData();
+          formData.append('file', logoBlob, 'logo.png');
+          
+          const uploadResponse = await fetch('https://api.langdock.com/v1/files', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            body: formData,
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            attachmentId = uploadData.id;
+            console.log('Logo uploaded successfully, attachmentId:', attachmentId);
+          } else {
+            const errorText = await uploadResponse.text();
+            console.error('Failed to upload logo to Langdock:', uploadResponse.status, errorText);
+          }
+        }
+      } catch (uploadError) {
+        console.error('Error uploading logo:', uploadError);
+      }
+    }
+    
+    // Build message content
     const messageContent: any = {
       role: 'user',
       content: prompt
     };
     
-    // If logo is provided, ensure it has https:// prefix
-    if (logoUrl) {
-      const fullLogoUrl = logoUrl.startsWith('http') ? logoUrl : `https://${logoUrl}`;
-      messageContent.content = `${prompt}\n\nIMPORTANT: Use the company logo from this URL: ${fullLogoUrl}\nIncorporate this logo prominently in the mockup design.`;
+    // Add attachmentId if logo was uploaded
+    if (attachmentId) {
+      messageContent.attachmentIds = [attachmentId];
+      messageContent.content = `${prompt}\n\nIMPORTANT: Use the attached company logo image. Incorporate it prominently in the mockup design.`;
     }
 
     // Call Langdock Assistant API
