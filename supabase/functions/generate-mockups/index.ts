@@ -233,7 +233,7 @@ async function generateImageWithLangdock(
       fullResponse: data
     }, null, 2));
 
-    // Extract image URL from response
+    // Extract image URL or Base64 from response
     // Check result array for tool results with generated images
     if (data.result && Array.isArray(data.result)) {
       for (const item of data.result) {
@@ -241,33 +241,77 @@ async function generateImageWithLangdock(
         if (item.role === 'tool' && Array.isArray(item.content)) {
           for (const contentItem of item.content) {
             if (contentItem.toolName === 'image_generation' && contentItem.result) {
-              // Check for output field with image URL
-              if (contentItem.result.output) {
-                console.log('Found image in tool result output');
-                return contentItem.result.output;
-              }
-              // Check for imageUrl field
-              if (contentItem.result.imageUrl) {
-                console.log('Found imageUrl in tool result');
-                return contentItem.result.imageUrl;
-              }
-              // Check for url field
-              if (contentItem.result.url) {
-                console.log('Found url in tool result');
-                return contentItem.result.url;
-              }
-              // Check for images array
+              // Check for images array with base64 or url
               if (contentItem.result.images && Array.isArray(contentItem.result.images)) {
                 const firstImage = contentItem.result.images[0];
-                if (typeof firstImage === 'string') {
-                  console.log('Found image in images array');
-                  return firstImage;
+                
+                // Check for base64 data
+                if (firstImage?.base64) {
+                  console.log('Found base64 image, uploading to Supabase Storage');
+                  const base64Data = firstImage.base64;
+                  
+                  // Convert base64 to binary
+                  const binaryString = atob(base64Data);
+                  const bytes = new Uint8Array(binaryString.length);
+                  for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                  }
+                  
+                  // Upload to Supabase Storage
+                  const fileName = `mockup-${Date.now()}.png`;
+                  const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+                  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+                  
+                  const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/mockups/${fileName}`, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                      'Content-Type': 'image/png',
+                    },
+                    body: bytes,
+                  });
+                  
+                  if (uploadResponse.ok) {
+                    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/mockups/${fileName}`;
+                    console.log('Image uploaded to Storage:', publicUrl);
+                    return publicUrl;
+                  } else {
+                    const errorText = await uploadResponse.text();
+                    console.error('Failed to upload to Storage:', uploadResponse.status, errorText);
+                  }
                 }
-                if (firstImage?.url) {
+                
+                // Check for URL (not "N/A")
+                if (firstImage?.url && firstImage.url !== 'N/A') {
                   console.log('Found image URL in images array');
                   return firstImage.url;
                 }
+                
+                // Check for string image
+                if (typeof firstImage === 'string' && firstImage !== 'N/A') {
+                  console.log('Found image in images array');
+                  return firstImage;
+                }
               }
+              
+              // Check for output field with image URL
+              if (contentItem.result.output && contentItem.result.output !== 'N/A') {
+                console.log('Found image in tool result output');
+                return contentItem.result.output;
+              }
+              
+              // Check for imageUrl field
+              if (contentItem.result.imageUrl && contentItem.result.imageUrl !== 'N/A') {
+                console.log('Found imageUrl in tool result');
+                return contentItem.result.imageUrl;
+              }
+              
+              // Check for url field
+              if (contentItem.result.url && contentItem.result.url !== 'N/A') {
+                console.log('Found url in tool result');
+                return contentItem.result.url;
+              }
+              
               // Log if there was an error
               if (contentItem.result.error) {
                 console.error('Image generation error:', contentItem.result.error);
