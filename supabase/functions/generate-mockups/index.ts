@@ -242,28 +242,15 @@ async function editMockupWithLogo(
     throw new Error("LOVABLE_API_KEY not configured");
   }
 
-  // Fetch template and convert to base64
+  // Fetch template image
   console.log("Fetching template image...");
   const templateResponse = await fetch(templateUrl);
   if (!templateResponse.ok) {
     throw new Error(`Failed to fetch template: ${templateResponse.status}`);
   }
-  const templateBlob = await templateResponse.blob();
-  const templateArrayBuffer = await templateBlob.arrayBuffer();
   
-  // Convert to base64 in chunks to avoid stack overflow
-  const uint8Array = new Uint8Array(templateArrayBuffer);
-  const chunkSize = 8192;
-  let binaryString = '';
-  
-  for (let i = 0; i < uint8Array.length; i += chunkSize) {
-    const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-    binaryString += String.fromCharCode.apply(null, Array.from(chunk));
-  }
-  
-  const templateBase64 = btoa(binaryString);
-  const templateDataUrl = `data:image/png;base64,${templateBase64}`;
-  console.log("Template converted to base64 (length:", templateBase64.length, ")");
+  // For now, use URL directly - Gemini should be able to fetch public URLs
+  console.log("Using template URL directly (public URL from Supabase Storage)");
 
   const styleDescription = getStyleDescription(brandData.style);
   
@@ -444,7 +431,7 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
               {
                 type: "image_url",
                 image_url: {
-                  url: templateDataUrl,
+                  url: templateUrl,
                 },
               },
             ],
