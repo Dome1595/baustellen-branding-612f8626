@@ -34,6 +34,7 @@ const Review = () => {
   const [isGeneratingMockups, setIsGeneratingMockups] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isUploadingTemplates, setIsUploadingTemplates] = useState(false);
+  const [progressMessage, setProgressMessage] = useState<string>("");
 
   useEffect(() => {
     if (!projectData) {
@@ -73,39 +74,80 @@ const Review = () => {
 
   const generateMockups = async () => {
     setIsGeneratingMockups(true);
+    setProgressMessage("Mockup-Generierung startet...");
+    
     try {
-      const { data, error } = await supabase.functions.invoke('generate-mockups', {
-        body: { projectData }
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-mockups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ projectData, stream: true })
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-      if (data?.mockups) {
-        // Enhance mockups with local preview images
-        const enhancedMockups = data.mockups.map((mockup: any) => {
-          let previewUrl = mockup.url;
-          
-          // Use local template as preview if available
-          if (mockup.type === "vehicle") {
-            const brand = projectData.vehicleBrand?.toLowerCase();
-            previewUrl = TEMPLATE_PREVIEW_MAP[brand] || TEMPLATE_PREVIEW_MAP["mercedes"];
-          } else if (mockup.type === "scaffold") {
-            previewUrl = TEMPLATE_PREVIEW_MAP["scaffold"];
-          } else if (mockup.type === "fence") {
-            previewUrl = TEMPLATE_PREVIEW_MAP["fence"];
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedMockups: any[] = [];
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.progress) {
+                  setProgressMessage(data.progress);
+                }
+                
+                if (data.mockups) {
+                  // Enhance mockups with local preview images
+                  const enhancedMockups = data.mockups.map((mockup: any) => {
+                    return { 
+                      ...mockup, 
+                      previewUrl: mockup.url // Use the actual generated URL
+                    };
+                  });
+                  
+                  accumulatedMockups = enhancedMockups;
+                  setMockups(enhancedMockups);
+                }
+                
+                if (data.done) {
+                  toast.success('Mockups erfolgreich generiert');
+                }
+                
+                if (data.error) {
+                  throw new Error(data.error);
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e);
+              }
+            }
           }
-          
-          return { ...mockup, previewUrl };
-        });
-        
-        setMockups(enhancedMockups);
-        toast.success('Mockups erfolgreich generiert');
+        }
       }
     } catch (error) {
       console.error('Error generating mockups:', error);
       toast.error('Fehler beim Generieren der Mockups');
     } finally {
       setIsGeneratingMockups(false);
+      setProgressMessage("");
     }
   };
 
@@ -256,7 +298,10 @@ const Review = () => {
             ) : isGeneratingMockups ? (
               <div className="flex flex-col items-center justify-center py-12 gap-4">
                 <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                <p className="text-muted-foreground">Mockups werden generiert...</p>
+                <p className="text-muted-foreground font-medium">{progressMessage || "Mockups werden generiert..."}</p>
+                {progressMessage && (
+                  <p className="text-sm text-muted-foreground">Dies kann einige Sekunden dauern...</p>
+                )}
               </div>
             ) : mockups.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-3">

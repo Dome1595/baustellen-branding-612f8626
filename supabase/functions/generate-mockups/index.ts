@@ -16,16 +16,141 @@ serve(async (req) => {
     // Ensure templates are uploaded to Supabase Storage
     await ensureTemplatesUploaded();
 
-    const { projectData } = await req.json();
+    const { projectData, stream } = await req.json();
     console.log("Generating mockups with project data:", projectData);
 
+    // If streaming is requested, use SSE
+    if (stream) {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const sendProgress = (message: string) => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ progress: message })}\n\n`));
+          };
+
+          try {
+            const mockups: Array<{ type: string; url: string; title: string }> = [];
+
+            // Generate vehicle mockup if enabled
+            if (projectData.vehicle_enabled || projectData.vehicleEnabled) {
+              sendProgress("Fahrzeug-Mockup wird vorbereitet...");
+              const templateUrl = selectVehicleTemplate(projectData);
+              
+              const vehicleMockupUrl = await editMockupWithLogo(
+                templateUrl,
+                projectData.logo_url || projectData.logoUrl,
+                {
+                  companyName: projectData.company_name || projectData.companyName,
+                  slogan: projectData.slogan_selected || projectData.selectedSlogan,
+                  phone: projectData.phone,
+                  email: projectData.email,
+                  website: projectData.website,
+                  primaryColor: projectData.primary_color || projectData.primaryColor,
+                  secondaryColor: projectData.secondary_color || projectData.secondaryColor,
+                  style: projectData.style || "modern",
+                },
+                "vehicle",
+                sendProgress
+              );
+              
+              mockups.push({
+                type: "vehicle",
+                url: vehicleMockupUrl,
+                title: `${projectData.vehicle_brand || projectData.vehicleBrand} ${projectData.vehicle_body || projectData.vehicleBody || "Transporter"}`,
+              });
+              sendProgress("Fahrzeug-Mockup fertig ✓");
+            }
+
+            // Generate scaffold mockup if enabled
+            if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
+              sendProgress("Gerüstplane wird vorbereitet...");
+              const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+              const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
+              
+              const scaffoldMockupUrl = await editMockupWithLogo(
+                templateUrl,
+                projectData.logo_url || projectData.logoUrl,
+                {
+                  companyName: projectData.company_name || projectData.companyName,
+                  slogan: projectData.slogan_selected || projectData.selectedSlogan,
+                  phone: projectData.phone,
+                  email: projectData.email,
+                  website: projectData.website,
+                  primaryColor: projectData.primary_color || projectData.primaryColor,
+                  secondaryColor: projectData.secondary_color || projectData.secondaryColor,
+                  style: projectData.style || "modern",
+                },
+                "scaffold",
+                sendProgress
+              );
+              
+              mockups.push({
+                type: "scaffold",
+                url: scaffoldMockupUrl,
+                title: "Gerüstplane",
+              });
+              sendProgress("Gerüstplane fertig ✓");
+            }
+
+            // Generate fence mockup if enabled
+            if (projectData.fence_enabled || projectData.fenceEnabled) {
+              sendProgress("Bauzaunbanner wird vorbereitet...");
+              const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+              const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
+              
+              const fenceMockupUrl = await editMockupWithLogo(
+                templateUrl,
+                projectData.logo_url || projectData.logoUrl,
+                {
+                  companyName: projectData.company_name || projectData.companyName,
+                  slogan: projectData.slogan_selected || projectData.selectedSlogan,
+                  phone: projectData.phone,
+                  email: projectData.email,
+                  website: projectData.website,
+                  primaryColor: projectData.primary_color || projectData.primaryColor,
+                  secondaryColor: projectData.secondary_color || projectData.secondaryColor,
+                  style: projectData.style || "modern",
+                },
+                "fence",
+                sendProgress
+              );
+              
+              mockups.push({
+                type: "fence",
+                url: fenceMockupUrl,
+                title: "Bauzaunbanner",
+              });
+              sendProgress("Bauzaunbanner fertig ✓");
+            }
+
+            sendProgress("Alle Mockups erfolgreich generiert!");
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ mockups, done: true })}\n\n`));
+            controller.close();
+          } catch (error) {
+            console.error("Error in streaming:", error);
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" })}\n\n`));
+            controller.close();
+          }
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
+      });
+    }
+
+    // Non-streaming fallback
     const mockups: Array<{ type: string; url: string; title: string }> = [];
 
     // Generate vehicle mockup if enabled
     if (projectData.vehicle_enabled || projectData.vehicleEnabled) {
       console.log("Generating vehicle mockup...");
       const templateUrl = selectVehicleTemplate(projectData);
-      console.log("Selected vehicle template:", templateUrl);
       
       const vehicleMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -55,7 +180,6 @@ serve(async (req) => {
       console.log("Generating scaffold mockup...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
       const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
-      console.log("Selected scaffold template:", templateUrl);
       
       const scaffoldMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -85,7 +209,6 @@ serve(async (req) => {
       console.log("Generating fence mockup...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
       const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
-      console.log("Selected fence template:", templateUrl);
       
       const fenceMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -230,7 +353,8 @@ async function editMockupWithLogo(
     secondaryColor: string;
     style: string;
   },
-  mockupType: "vehicle" | "scaffold" | "fence"
+  mockupType: "vehicle" | "scaffold" | "fence",
+  onProgress?: (message: string) => void
 ): Promise<string> {
   console.log("Starting mockup editing with Nano Banana...");
   console.log("Template URL:", templateUrl);
@@ -411,7 +535,7 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
   }
 
   try {
-    console.log("Calling Lovable AI Gateway for image editing...");
+    onProgress?.("Template wird geladen...");
     
     // Fetch and convert images to base64
     console.log("Fetching template image from:", templateUrl);
@@ -423,6 +547,7 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
     const templateBase64 = await blobToBase64(templateBlob);
     console.log("Template image fetched and converted to base64");
     
+    onProgress?.("Logo wird geladen...");
     console.log("Fetching logo image from:", logoUrl);
     const logoResponse = await fetch(logoUrl);
     if (!logoResponse.ok) {
@@ -432,6 +557,7 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
     const logoBase64 = await blobToBase64(logoBlob);
     console.log("Logo image fetched and converted to base64");
     
+    onProgress?.("Logo wird integriert...");
     // Call Lovable AI Gateway with Nano Banana for image editing
     console.log("Calling AI Gateway with base64 images...");
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -486,6 +612,7 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
       throw new Error("No image returned from AI Gateway");
     }
 
+    onProgress?.("Mockup wird hochgeladen...");
     console.log("Image edited successfully, uploading to storage...");
 
     // Upload the base64 image to Supabase Storage
