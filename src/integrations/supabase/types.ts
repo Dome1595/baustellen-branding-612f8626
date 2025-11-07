@@ -14,7 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      projects: {
+        Row: {
+          accent_color: string | null
+          address: string | null
+          cluster: Database["public"]["Enums"]["cluster"] | null
+          company_name: string
+          created_at: string
+          creativity_level: number | null
+          fence_enabled: boolean | null
+          fence_fields: number | null
+          id: string
+          logo_has_alpha: boolean | null
+          logo_url: string | null
+          mockups: Json | null
+          pdf_url: string | null
+          phone: string | null
+          primary_color: string | null
+          scaffold_enabled: boolean | null
+          scaffold_height_cm: number | null
+          scaffold_size: string | null
+          scaffold_width_cm: number | null
+          secondary_color: string | null
+          slogan_selected: string | null
+          slogans_ki: Json | null
+          status: Database["public"]["Enums"]["project_status"] | null
+          trade: Database["public"]["Enums"]["trade"] | null
+          updated_at: string
+          variant: string | null
+          vehicle_blueprint: string | null
+          vehicle_body: string | null
+          vehicle_brand: string | null
+          vehicle_color: string | null
+          vehicle_enabled: boolean | null
+          vehicle_model: string | null
+          vehicle_roof: string | null
+          vehicle_wheelbase: string | null
+          website: string | null
+        }
+        Insert: {
+          accent_color?: string | null
+          address?: string | null
+          cluster?: Database["public"]["Enums"]["cluster"] | null
+          company_name: string
+          created_at?: string
+          creativity_level?: number | null
+          fence_enabled?: boolean | null
+          fence_fields?: number | null
+          id?: string
+          logo_has_alpha?: boolean | null
+          logo_url?: string | null
+          mockups?: Json | null
+          pdf_url?: string | null
+          phone?: string | null
+          primary_color?: string | null
+          scaffold_enabled?: boolean | null
+          scaffold_height_cm?: number | null
+          scaffold_size?: string | null
+          scaffold_width_cm?: number | null
+          secondary_color?: string | null
+          slogan_selected?: string | null
+          slogans_ki?: Json | null
+          status?: Database["public"]["Enums"]["project_status"] | null
+          trade?: Database["public"]["Enums"]["trade"] | null
+          updated_at?: string
+          variant?: string | null
+          vehicle_blueprint?: string | null
+          vehicle_body?: string | null
+          vehicle_brand?: string | null
+          vehicle_color?: string | null
+          vehicle_enabled?: boolean | null
+          vehicle_model?: string | null
+          vehicle_roof?: string | null
+          vehicle_wheelbase?: string | null
+          website?: string | null
+        }
+        Update: {
+          accent_color?: string | null
+          address?: string | null
+          cluster?: Database["public"]["Enums"]["cluster"] | null
+          company_name?: string
+          created_at?: string
+          creativity_level?: number | null
+          fence_enabled?: boolean | null
+          fence_fields?: number | null
+          id?: string
+          logo_has_alpha?: boolean | null
+          logo_url?: string | null
+          mockups?: Json | null
+          pdf_url?: string | null
+          phone?: string | null
+          primary_color?: string | null
+          scaffold_enabled?: boolean | null
+          scaffold_height_cm?: number | null
+          scaffold_size?: string | null
+          scaffold_width_cm?: number | null
+          secondary_color?: string | null
+          slogan_selected?: string | null
+          slogans_ki?: Json | null
+          status?: Database["public"]["Enums"]["project_status"] | null
+          trade?: Database["public"]["Enums"]["trade"] | null
+          updated_at?: string
+          variant?: string | null
+          vehicle_blueprint?: string | null
+          vehicle_body?: string | null
+          vehicle_brand?: string | null
+          vehicle_color?: string | null
+          vehicle_enabled?: boolean | null
+          vehicle_model?: string | null
+          vehicle_roof?: string | null
+          vehicle_wheelbase?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +136,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      cluster:
+        | "RECRUITING"
+        | "KUNDEN_LEISTUNG"
+        | "VERTRAUEN_SERVICE"
+        | "BRANDING"
+      project_status: "DRAFT" | "READY" | "SENT"
+      trade: "MALER" | "SHK"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +269,15 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      cluster: [
+        "RECRUITING",
+        "KUNDEN_LEISTUNG",
+        "VERTRAUEN_SERVICE",
+        "BRANDING",
+      ],
+      project_status: ["DRAFT", "READY", "SENT"],
+      trade: ["MALER", "SHK"],
+    },
   },
 } as const
