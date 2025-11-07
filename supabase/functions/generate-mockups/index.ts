@@ -382,8 +382,64 @@ async function editMockupWithLogo(
   mockupType: "vehicle" | "scaffold" | "fence",
   onProgress?: (message: string) => void
 ): Promise<string> {
+  console.log(`\n=== Starting mockup generation for ${mockupType} ===`);
+  console.log("Parameters:", { templateUrl, logoUrl, brandData, mockupType });
+
+  // Try Nano Banana first, then fall back to Replicate Flux 1.1 Pro
+  try {
+    onProgress?.("Mockup wird mit Nano Banana generiert...");
+    return await generateWithNanoBanana(templateUrl, logoUrl, brandData, mockupType, onProgress);
+  } catch (nanoBananaError) {
+    console.error("Nano Banana failed:", nanoBananaError);
+    onProgress?.("Nano Banana fehlgeschlagen, versuche Replicate Flux...");
+    
+    try {
+      return await generateWithReplicateFlux(templateUrl, logoUrl, brandData, mockupType, onProgress);
+    } catch (replicateError) {
+      console.error("Replicate Flux failed:", replicateError);
+      onProgress?.("Beide AI-Generierungen fehlgeschlagen, verwende Template...");
+      
+      // Final fallback: return template
+      try {
+        console.log("Uploading template as preview fallback...");
+        const timestamp = Date.now();
+        const filename = `mockup-${mockupType}-preview-${timestamp}.png`;
+        
+        const templateResponse = await fetch(templateUrl);
+        if (templateResponse.ok) {
+          const templateBlob = await templateResponse.blob();
+          const templateBase64 = await blobToBase64(templateBlob);
+          const previewUrl = await uploadBase64Image(templateBase64, filename, "image/png");
+          console.log("✓ Template uploaded as preview:", previewUrl);
+          return previewUrl;
+        }
+      } catch (uploadError) {
+        console.error("Failed to upload template fallback:", uploadError);
+      }
+      
+      return templateUrl;
+    }
+  }
+}
+
+async function generateWithNanoBanana(
+  templateUrl: string,
+  logoUrl: string,
+  brandData: {
+    companyName: string;
+    slogan: string;
+    phone?: string;
+    email?: string;
+    website?: string;
+    primaryColor: string;
+    secondaryColor: string;
+    style: string;
+  },
+  mockupType: "vehicle" | "scaffold" | "fence",
+  onProgress?: (message: string) => void
+): Promise<string> {
   const startTime = Date.now();
-  console.log("=== Starting mockup editing with Nano Banana ===");
+  console.log("=== Trying Nano Banana AI generation ===");
   console.log("Template URL:", templateUrl);
   console.log("Logo URL:", logoUrl);
   console.log("Mockup type:", mockupType);
@@ -759,30 +815,205 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
     console.error(`❌ Error in editMockupWithLogo after ${totalDuration}ms:`, error);
     console.error("Error details:", error instanceof Error ? error.message : String(error));
     
-    onProgress?.("⚠️ Mockup-Generierung fehlgeschlagen - Template als Vorschau");
+    throw error;
+  }
+}
+
+async function generateWithReplicateFlux(
+  templateUrl: string,
+  logoUrl: string,
+  brandData: {
+    companyName: string;
+    slogan: string;
+    phone?: string;
+    email?: string;
+    website?: string;
+    primaryColor: string;
+    secondaryColor: string;
+    style: string;
+  },
+  mockupType: "vehicle" | "scaffold" | "fence",
+  onProgress?: (message: string) => void
+): Promise<string> {
+  console.log("=== Trying Replicate Flux 1.1 Pro generation ===");
+  
+  const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
+  if (!REPLICATE_API_KEY) {
+    throw new Error("REPLICATE_API_KEY is not configured");
+  }
+
+  try {
+    onProgress?.("Mockup wird mit Replicate Flux generiert...");
     
-    // Upload template as "preview" fallback
-    try {
-      console.log("Uploading template as preview fallback...");
-      const timestamp = Date.now();
-      const filename = `mockup-${mockupType}-preview-${timestamp}.png`;
+    // Build contact info string
+    const contactParts = [];
+    if (brandData.phone) contactParts.push(`Tel: ${brandData.phone}`);
+    if (brandData.email) contactParts.push(`E-Mail: ${brandData.email}`);
+    if (brandData.website) contactParts.push(`Web: ${brandData.website}`);
+    const contactInfo = contactParts.join(" | ");
+
+    const styleDescription = getStyleDescription(brandData.style);
+    
+    // Construct a detailed prompt describing the mockup based on type
+    let prompt = "";
+    
+    if (mockupType === "vehicle") {
+      prompt = `Professional vehicle branding mockup - photorealistic quality:
+
+VEHICLE: White commercial van/transporter side view
+BRANDING PLACEMENT: On the vehicle's side panel
+
+BRANDING ELEMENTS:
+- Company Name: "${brandData.companyName}" (large, bold, prominent)
+- Slogan: "${brandData.slogan}" (medium size, below company name)
+- Contact: ${contactInfo} (smaller, at bottom)
+- Brand Color: ${brandData.primaryColor}
+- Style: ${styleDescription}
+
+DESIGN REQUIREMENTS:
+- Professional vehicle wrap design
+- Text should be clear and readable from distance
+- Use brand color ${brandData.primaryColor} as primary color
+- Clean, professional layout
+- Logo would be prominently placed (left side)
+- Text parallel to vehicle body lines
+- High contrast for maximum visibility
+
+OUTPUT: Ultra high resolution, photorealistic vehicle mockup with professional branding`;
+    } else {
+      prompt = `Professional ${mockupType} banner mockup - photorealistic quality:
+
+BANNER TYPE: ${mockupType === "scaffold" ? "Scaffolding mesh banner" : "Construction fence banner"}
+LAYOUT: Centered design on white/light banner surface
+
+BRANDING ELEMENTS:
+- Company Name: "${brandData.companyName}" (very large, bold, centered)
+- Slogan: "${brandData.slogan}" (medium size, below company name)
+- Contact Information: ${contactInfo} (smaller, at bottom)
+- Brand Color: ${brandData.primaryColor}
+- Style: ${styleDescription}
+
+DESIGN REQUIREMENTS:
+- Centered, balanced composition
+- Logo at top center (large and prominent)
+- Professional advertising banner design
+- High contrast text for outdoor visibility
+- Use brand color ${brandData.primaryColor} strategically
+- Clean hierarchy: Logo → Company Name → Slogan → Contact
+- Realistic ${mockupType} setting
+
+OUTPUT: Ultra high resolution, photorealistic banner mockup with professional branding`;
+    }
+
+    console.log("Replicate Flux prompt:", prompt);
+
+    // Call Replicate API
+    const response = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${REPLICATE_API_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "wait=60"
+      },
+      body: JSON.stringify({
+        version: "d0b9eff6214e0a1c2a1e7ae04ca039603db1e866af83290070fc7a1c3c5b4b8f", // flux-1.1-pro latest version
+        input: {
+          prompt: prompt,
+          aspect_ratio: "16:9",
+          output_format: "png",
+          output_quality: 90,
+          safety_tolerance: 2,
+          prompt_upsampling: true
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Replicate API error: ${response.status} - ${errorText}`);
+    }
+
+    const prediction = await response.json();
+    console.log("Replicate prediction started:", prediction.id);
+    
+    // If prediction is already complete (due to Prefer: wait header)
+    if (prediction.status === "succeeded" && prediction.output) {
+      const generatedImageUrl = prediction.output;
+      console.log("✓ Replicate generated image URL (immediate):", generatedImageUrl);
       
-      // Fetch template again and upload as preview
-      const templateResponse = await fetch(templateUrl);
-      if (templateResponse.ok) {
-        const templateBlob = await templateResponse.blob();
-        const templateBase64 = await blobToBase64(templateBlob);
-        const previewUrl = await uploadBase64Image(templateBase64, filename, "image/png");
-        console.log("✓ Template uploaded as preview:", previewUrl);
-        return previewUrl;
+      // Download and upload to Supabase storage
+      onProgress?.("Lade generiertes Mockup hoch...");
+      const imageResponse = await fetch(generatedImageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch generated image: ${imageResponse.status}`);
       }
-    } catch (uploadError) {
-      console.error("Failed to upload preview:", uploadError);
+      
+      const imageBlob = await imageResponse.blob();
+      const imageBase64 = await blobToBase64(imageBlob);
+      
+      const timestamp = Date.now();
+      const filename = `mockup-${mockupType}-replicate-${timestamp}.png`;
+      const uploadedUrl = await uploadBase64Image(imageBase64, filename, "image/png");
+      
+      console.log("✓ Replicate mockup uploaded to Supabase:", uploadedUrl);
+      return uploadedUrl;
     }
     
-    // Last resort: return original template URL
-    console.log("Returning original template URL as last resort");
-    return templateUrl;
+    // Poll for completion if not immediately done
+    onProgress?.("Warte auf Replicate Flux Verarbeitung...");
+    let predictionStatus = prediction;
+    let attempts = 0;
+    const maxAttempts = 60; // 5 minutes max (5s per attempt)
+    
+    while (predictionStatus.status !== "succeeded" && predictionStatus.status !== "failed" && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+      
+      const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+        headers: {
+          "Authorization": `Bearer ${REPLICATE_API_KEY}`,
+        }
+      });
+      
+      if (!statusResponse.ok) {
+        throw new Error(`Failed to check prediction status: ${statusResponse.status}`);
+      }
+      
+      predictionStatus = await statusResponse.json();
+      console.log(`Replicate status check ${attempts + 1}:`, predictionStatus.status);
+      attempts++;
+    }
+
+    if (predictionStatus.status === "failed") {
+      throw new Error(`Replicate generation failed: ${predictionStatus.error || "Unknown error"}`);
+    }
+
+    if (predictionStatus.status !== "succeeded" || !predictionStatus.output) {
+      throw new Error("Replicate prediction timed out or has no output");
+    }
+
+    const generatedImageUrl = predictionStatus.output;
+    console.log("✓ Replicate generated image URL:", generatedImageUrl);
+    
+    // Download and upload to Supabase storage
+    onProgress?.("Lade generiertes Mockup hoch...");
+    const imageResponse = await fetch(generatedImageUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to fetch generated image: ${imageResponse.status}`);
+    }
+    
+    const imageBlob = await imageResponse.blob();
+    const imageBase64 = await blobToBase64(imageBlob);
+    
+    const timestamp = Date.now();
+    const filename = `mockup-${mockupType}-replicate-${timestamp}.png`;
+    const uploadedUrl = await uploadBase64Image(imageBase64, filename, "image/png");
+    
+    console.log("✓ Replicate mockup uploaded to Supabase:", uploadedUrl);
+    return uploadedUrl;
+    
+  } catch (error) {
+    console.error("Error in generateWithReplicateFlux:", error);
+    throw error;
   }
 }
 
