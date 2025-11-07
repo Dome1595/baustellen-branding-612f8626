@@ -7,6 +7,25 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+// Import templates for preview
+import fordTemplate from "@/assets/templates/ford-transporter.png";
+import vwTemplate from "@/assets/templates/vw-transporter.png";
+import mercedesSprinterTemplate from "@/assets/templates/mercedes-sprinter.png";
+import mercedesTransporterTemplate from "@/assets/templates/mercedes-transporter.png";
+import scaffoldTemplate from "@/assets/templates/scaffold-banner.png";
+import fenceTemplate from "@/assets/templates/fence-banner.png";
+
+const TEMPLATE_PREVIEW_MAP: Record<string, string> = {
+  "ford": fordTemplate,
+  "vw": vwTemplate,
+  "volkswagen": vwTemplate,
+  "mercedes-sprinter": mercedesSprinterTemplate,
+  "mercedes-transporter": mercedesTransporterTemplate,
+  "mercedes": mercedesTransporterTemplate,
+  "scaffold": scaffoldTemplate,
+  "fence": fenceTemplate,
+};
+
 const Review = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,7 +81,24 @@ const Review = () => {
       if (error) throw error;
 
       if (data?.mockups) {
-        setMockups(data.mockups);
+        // Enhance mockups with local preview images
+        const enhancedMockups = data.mockups.map((mockup: any) => {
+          let previewUrl = mockup.url;
+          
+          // Use local template as preview if available
+          if (mockup.type === "vehicle") {
+            const brand = projectData.vehicleBrand?.toLowerCase();
+            previewUrl = TEMPLATE_PREVIEW_MAP[brand] || TEMPLATE_PREVIEW_MAP["mercedes"];
+          } else if (mockup.type === "scaffold") {
+            previewUrl = TEMPLATE_PREVIEW_MAP["scaffold"];
+          } else if (mockup.type === "fence") {
+            previewUrl = TEMPLATE_PREVIEW_MAP["fence"];
+          }
+          
+          return { ...mockup, previewUrl };
+        });
+        
+        setMockups(enhancedMockups);
         toast.success('Mockups erfolgreich generiert');
       }
     } catch (error) {
@@ -226,34 +262,18 @@ const Review = () => {
               <div className="grid gap-6 md:grid-cols-3">
                 {mockups.map((mockup, index) => (
                   <Card key={index} className="overflow-hidden">
-                    {mockup.url ? (
-                      <img
-                        src={mockup.url}
-                        alt={mockup.title}
-                        className="h-48 w-full object-cover"
-                        crossOrigin="anonymous"
-                        onError={(e) => {
-                          console.error('Error loading mockup image:', mockup.url);
-                          // Hide the broken image
-                          e.currentTarget.style.display = 'none';
-                          // Show fallback text
-                          const parent = e.currentTarget.parentElement;
-                          if (parent) {
-                            const fallback = document.createElement('div');
-                            fallback.className = 'h-48 w-full bg-muted flex items-center justify-center p-4';
-                            fallback.innerHTML = `<p class="text-center text-sm text-muted-foreground">Template: ${mockup.title}<br/><span class="text-xs">Mockup-Generierung in Entwicklung</span></p>`;
-                            parent.insertBefore(fallback, e.currentTarget);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="h-48 w-full bg-muted flex items-center justify-center">
-                        <p className="text-muted-foreground">Mockup wird generiert...</p>
-                      </div>
-                    )}
+                    <img
+                      src={mockup.previewUrl || mockup.url}
+                      alt={mockup.title}
+                      className="h-48 w-full object-cover"
+                      onError={(e) => {
+                        console.error('Error loading mockup image');
+                      }}
+                    />
                     <div className="p-4">
                       <h3 className="font-semibold">{mockup.title}</h3>
-                      <p className="text-sm text-muted-foreground">Template verfügbar</p>
+                      <p className="text-sm text-muted-foreground">Template-Vorschau</p>
+                      <p className="text-xs text-muted-foreground mt-1">Logo & Text-Integration in Entwicklung</p>
                     </div>
                   </Card>
                 ))}
