@@ -24,16 +24,24 @@ serve(async (req) => {
 
     // Generate mockups based on enabled media
     if (projectData.vehicle_enabled || projectData.vehicleEnabled) {
-      const vehiclePrompt = `Erstelle ein realistisches Mockup einer Fahrzeugbeschriftung für ein ${projectData.trade}-Unternehmen.
+      const vehiclePrompt = `Create a highly realistic photographic mockup of a white commercial van with vehicle branding.
 
-Unternehmensname: ${projectData.company_name || projectData.companyName}
-Slogan: ${projectData.slogan_selected || projectData.selectedSlogan}
-Markenfarben: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}, ${projectData.accent_color || projectData.accentColor}
-Kreativitäts-Level: ${projectData.creativity_level || projectData.creativityLevel}/3
+Company: ${projectData.company_name || projectData.companyName}
+Slogan: "${projectData.slogan_selected || projectData.selectedSlogan}"
+Brand Colors: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}
+Logo URL: ${projectData.logo_url || projectData.logoUrl}
 
-Das Design soll ${(projectData.creativity_level || projectData.creativityLevel) === 3 ? 'kreativ und modern' : (projectData.creativity_level || projectData.creativityLevel) === 2 ? 'modern und dynamisch' : 'konservativ und seriös'} sein.
+Design Requirements:
+- Display the company logo prominently on the van's side panel
+- Show the company name in large, professional lettering using the primary brand color
+- Include the slogan below the company name in a complementary font
+- Add contact information (phone, website) in smaller text
+- The design should be ${(projectData.creativity_level || projectData.creativityLevel) === 3 ? 'modern and creative with dynamic elements' : (projectData.creativity_level || projectData.creativityLevel) === 2 ? 'contemporary and professional' : 'traditional and conservative'}
+- Use the brand colors throughout the design
+- Show a realistic white commercial van (Mercedes Sprinter or similar) in a construction site setting
+- The branding should look professionally vinyl-wrapped on the vehicle
 
-Zeige das Logo, den Firmennamen, Slogan und Kontaktinformationen auf einem weißen Transporter.`;
+CRITICAL: This must be a realistic photograph, not an illustration. The van should look like it's actually branded and driving/parked at a construction site.`;
 
       const vehicleResponse = await generateImage(vehiclePrompt, LOVABLE_API_KEY);
       mockups.push({
@@ -44,14 +52,25 @@ Zeige das Logo, den Firmennamen, Slogan und Kontaktinformationen auf einem weiß
     }
 
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
-      const scaffoldPrompt = `Erstelle ein realistisches Mockup einer Gerüstplane für ein ${projectData.trade}-Unternehmen.
+      const scaffoldPrompt = `Create a highly realistic photographic mockup of construction scaffolding with a large branded banner/mesh.
 
-Unternehmensname: ${projectData.company_name || projectData.companyName}
-Slogan: ${projectData.slogan_selected || projectData.selectedSlogan}
-Markenfarben: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}, ${projectData.accent_color || projectData.accentColor}
-Größe: ${projectData.scaffold_size || projectData.scaffoldSize || '250 x 205 cm'}
+Company: ${projectData.company_name || projectData.companyName}
+Slogan: "${projectData.slogan_selected || projectData.selectedSlogan}"
+Brand Colors: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}
+Logo URL: ${projectData.logo_url || projectData.logoUrl}
 
-Das Design soll großflächig und aus der Ferne gut sichtbar sein. Zeige die Gerüstplane an einer Baustelle.`;
+Design Requirements:
+- Large-scale banner visible from street level
+- Company logo prominently displayed
+- Company name in huge, readable lettering using primary brand color
+- Slogan visible and legible from distance
+- Website/contact information included
+- Professional construction site appearance
+- The banner should cover a significant portion of the scaffolding
+- Show realistic construction scaffolding on a building facade
+- Design should use the specified brand colors
+
+CRITICAL: This must be a realistic photograph of an actual construction site with the branded banner clearly visible.`;
 
       const scaffoldResponse = await generateImage(scaffoldPrompt, LOVABLE_API_KEY);
       mockups.push({
@@ -62,14 +81,26 @@ Das Design soll großflächig und aus der Ferne gut sichtbar sein. Zeige die Ger
     }
 
     if (projectData.fence_enabled || projectData.fenceEnabled) {
-      const fencePrompt = `Erstelle ein realistisches Mockup eines Bauzaunbanners für ein ${projectData.trade}-Unternehmen.
+      const fencePrompt = `Create a highly realistic photographic mockup of construction site fence banners.
 
-Unternehmensname: ${projectData.company_name || projectData.companyName}
-Slogan: ${projectData.slogan_selected || projectData.selectedSlogan}
-Markenfarben: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}, ${projectData.accent_color || projectData.accentColor}
-Anzahl Felder: ${projectData.fence_fields || projectData.fenceFields || 3}
+Company: ${projectData.company_name || projectData.companyName}
+Slogan: "${projectData.slogan_selected || projectData.selectedSlogan}"
+Brand Colors: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}
+Logo URL: ${projectData.logo_url || projectData.logoUrl}
+Number of panels: ${projectData.fence_fields || projectData.fenceFields || 3}
 
-Das Design soll auf einem Bauzaun an einer Straße zu sehen sein.`;
+Design Requirements:
+- Multiple connected banner panels on construction fencing
+- Company logo clearly visible
+- Company name in bold lettering using primary brand color
+- Slogan prominently displayed
+- Contact information (phone/website)
+- Professional construction site fence appearance
+- Show the banners stretched across orange/yellow construction fence panels
+- Design should span multiple fence sections seamlessly
+- Use specified brand colors throughout
+
+CRITICAL: This must be a realistic photograph of actual construction site fence with branded banners attached.`;
 
       const fenceResponse = await generateImage(fencePrompt, LOVABLE_API_KEY);
       mockups.push({

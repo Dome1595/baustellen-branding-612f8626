@@ -37,16 +37,19 @@ const Export = () => {
                 className="group"
                 onClick={() => {
                   if (pdfUrl) {
-                    const link = document.createElement('a');
-                    link.href = pdfUrl;
-                    link.download = `${projectData?.companyName || 'Baustellen-Branding'}-Paket.pdf`;
-                    link.click();
+                    // Open HTML in new window for printing
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow && pdfUrl.startsWith('data:text/html')) {
+                      const htmlContent = atob(pdfUrl.split(',')[1]);
+                      printWindow.document.write(htmlContent);
+                      printWindow.document.close();
+                    }
                   }
                 }}
                 disabled={!pdfUrl}
               >
                 <Download className="mr-2 h-5 w-5" />
-                PDF herunterladen
+                PDF öffnen & drucken
               </Button>
             </div>
 
