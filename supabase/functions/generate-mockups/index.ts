@@ -424,12 +424,6 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
                   url: templateUrl,
                 },
               },
-              {
-                type: "image_url",
-                image_url: {
-                  url: logoUrl,
-                },
-              },
             ],
           },
         ],
