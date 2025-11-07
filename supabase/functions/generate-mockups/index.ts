@@ -12,11 +12,10 @@ serve(async (req) => {
 
   try {
     const { projectData } = await req.json();
-    const LANGDOCK_API_KEY = Deno.env.get('LANGDOCK_API_KEY');
-    const ASSISTANT_ID = Deno.env.get('LANGDOCK_ASSISTANT_ID_MOCKUPS');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!LANGDOCK_API_KEY || !ASSISTANT_ID) {
-      throw new Error('LANGDOCK_API_KEY or ASSISTANT_ID not configured');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY not configured');
     }
 
     console.log('Generating mockups for project:', projectData.company_name);
@@ -36,7 +35,7 @@ Das Design soll ${projectData.creativity_level === 3 ? 'kreativ und modern' : pr
 
 Zeige das Logo, den Firmennamen, Slogan und Kontaktinformationen auf einem weißen Transporter.`;
 
-      const vehicleResponse = await generateImage(vehiclePrompt, LANGDOCK_API_KEY, ASSISTANT_ID);
+      const vehicleResponse = await generateImage(vehiclePrompt, LOVABLE_API_KEY);
       mockups.push({
         type: 'vehicle',
         url: vehicleResponse,
@@ -54,7 +53,7 @@ Größe: ${projectData.scaffold_size || '250 x 205 cm'}
 
 Das Design soll großflächig und aus der Ferne gut sichtbar sein. Zeige die Gerüstplane an einer Baustelle.`;
 
-      const scaffoldResponse = await generateImage(scaffoldPrompt, LANGDOCK_API_KEY, ASSISTANT_ID);
+      const scaffoldResponse = await generateImage(scaffoldPrompt, LOVABLE_API_KEY);
       mockups.push({
         type: 'scaffold',
         url: scaffoldResponse,
@@ -72,7 +71,7 @@ Anzahl Felder: ${projectData.fence_fields || 3}
 
 Das Design soll auf einem Bauzaun an einer Straße zu sehen sein.`;
 
-      const fenceResponse = await generateImage(fencePrompt, LANGDOCK_API_KEY, ASSISTANT_ID);
+      const fenceResponse = await generateImage(fencePrompt, LOVABLE_API_KEY);
       mockups.push({
         type: 'fence',
         url: fenceResponse,
@@ -95,48 +94,49 @@ Das Design soll auf einem Bauzaun an einer Straße zu sehen sein.`;
   }
 });
 
-async function generateImage(prompt: string, apiKey: string, assistantId: string): Promise<string> {
-  const response = await fetch('https://api.langdock.com/assistant/v1/chat/completions', {
+async function generateImage(prompt: string, apiKey: string): Promise<string> {
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      assistantId: assistantId,
+      model: 'google/gemini-2.5-flash-image-preview',
       messages: [
         {
           role: 'user',
           content: prompt
         }
       ],
-      stream: false
+      modalities: ['image', 'text']
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Langdock API error:', response.status, errorText);
+    console.error('Lovable AI error:', response.status, errorText);
+    
+    if (response.status === 429) {
+      throw new Error('Rate limit exceeded. Please try again later.');
+    }
+    if (response.status === 402) {
+      throw new Error('Payment required. Please add credits to your Lovable AI workspace.');
+    }
+    
     throw new Error(`Image generation failed: ${response.status}`);
   }
 
   const data = await response.json();
-  console.log('Langdock response:', JSON.stringify(data, null, 2));
+  console.log('Lovable AI response received');
   
-  // Check if there's a tool call result with an image
-  const result = data.result?.[0];
+  // Extract base64 image from response
+  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
   
-  // Check if it's a tool call array
-  if (Array.isArray(result?.url)) {
-    const toolCall = result.url[0];
-    if (toolCall?.type === 'tool-call' && toolCall?.toolName === 'image_generation') {
-      // The image generation was initiated, but we need to wait for the result
-      // For now, return a placeholder or the prompt used
-      console.log('Image generation initiated with prompt:', toolCall.args?.prompt);
-      return toolCall.args?.prompt || 'Image generation in progress';
-    }
+  if (!imageUrl) {
+    console.error('No image in response:', JSON.stringify(data, null, 2));
+    throw new Error('No image generated');
   }
   
-  // Otherwise try to get content directly
-  return result?.content || result?.url || '';
+  return imageUrl;
 }
