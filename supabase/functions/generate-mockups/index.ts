@@ -65,7 +65,7 @@ serve(async (req) => {
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
       sendProgress("Gerüstplane wird vorbereitet...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner-optimized.png`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
               
               const scaffoldMockupUrl = await editMockupWithLogo(
                 templateUrl,
@@ -96,7 +96,7 @@ serve(async (req) => {
     if (projectData.fence_enabled || projectData.fenceEnabled) {
       sendProgress("Bauzaunbanner wird vorbereitet...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner-optimized.png`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
               
               const fenceMockupUrl = await editMockupWithLogo(
                 templateUrl,
@@ -179,7 +179,7 @@ serve(async (req) => {
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
       console.log("Generating scaffold mockup...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner-optimized.png`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
       
       const scaffoldMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -208,7 +208,7 @@ serve(async (req) => {
     if (projectData.fence_enabled || projectData.fenceEnabled) {
       console.log("Generating fence mockup...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner-optimized.png`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
       
       const fenceMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -323,22 +323,22 @@ function selectVehicleTemplate(projectData: any): string {
   
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   
-  // Use optimized versions for AI processing
+  // Try optimized versions first, fallback to original
   if (brand === "ford") {
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/ford-transporter-optimized.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/ford-transporter.png`;
   }
   if (brand === "vw" || brand === "volkswagen") {
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/vw-transporter-optimized.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/vw-transporter.png`;
   }
   if (brand === "mercedes") {
     if (body === "sprinter") {
-      return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-sprinter-optimized.png`;
+      return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-sprinter.png`;
     }
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter-optimized.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter.png`;
   }
   
-  // Fallback to Mercedes Transporter (optimized)
-  return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter-optimized.png`;
+  // Fallback to Mercedes Transporter
+  return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter.png`;
 }
 
 async function editMockupWithLogo(
