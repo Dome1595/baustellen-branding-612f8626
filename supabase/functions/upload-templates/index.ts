@@ -17,6 +17,41 @@ const TEMPLATE_URLS = {
   "fence-banner.png": "https://e629d472-520f-41d1-92bb-f569d0264b37.lovableproject.com/mockup-templates/fence-banner.png",
 };
 
+// Helper function to determine required templates based on project data
+function getRequiredTemplates(projectData: any): string[] {
+  const required: string[] = [];
+  
+  // Vehicle template based on brand/model
+  if (projectData?.vehicleEnabled) {
+    const brand = projectData.vehicleBrand?.toLowerCase();
+    const model = projectData.vehicleModel?.toLowerCase();
+    
+    if (brand === 'ford') {
+      required.push('ford-transporter.png');
+    } else if (brand === 'vw' || brand === 'volkswagen') {
+      required.push('vw-transporter.png');
+    } else if (brand === 'mercedes') {
+      if (model === 'sprinter') {
+        required.push('mercedes-sprinter.png');
+      } else {
+        required.push('mercedes-transporter.png');
+      }
+    }
+  }
+  
+  // Scaffold banner
+  if (projectData?.scaffoldEnabled) {
+    required.push('scaffold-banner.png');
+  }
+  
+  // Fence banner
+  if (projectData?.fenceEnabled) {
+    required.push('fence-banner.png');
+  }
+  
+  return required;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -27,13 +62,32 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Parse request body to get project data
+    const { projectData } = await req.json().catch(() => ({}));
+
     console.log("Starting template upload...");
+
+    // Determine which templates are needed
+    let requiredTemplates = getRequiredTemplates(projectData);
+    
+    // Fallback: if no templates selected, upload all templates
+    if (!projectData || requiredTemplates.length === 0) {
+      console.warn("No templates selected, uploading all templates as fallback");
+      requiredTemplates = Object.keys(TEMPLATE_URLS);
+    } else {
+      console.log(`Uploading ${requiredTemplates.length} selected templates:`, requiredTemplates);
+    }
 
     const results: Record<string, string> = {};
     let successCount = 0;
     let errorCount = 0;
 
-    for (const [filename, url] of Object.entries(TEMPLATE_URLS)) {
+    for (const filename of requiredTemplates) {
+      const url = TEMPLATE_URLS[filename as keyof typeof TEMPLATE_URLS];
+      if (!url) {
+        console.warn(`Template ${filename} not found in TEMPLATE_URLS`);
+        continue;
+      }
       try {
         console.log(`Fetching ${filename} from ${url}...`);
         

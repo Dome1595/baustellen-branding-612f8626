@@ -52,7 +52,9 @@ const Review = () => {
     console.log("Uploading templates via edge function...");
 
     try {
-      const { data, error } = await supabase.functions.invoke('upload-templates');
+      const { data, error } = await supabase.functions.invoke('upload-templates', {
+        body: { projectData }
+      });
 
       if (error) throw error;
 
