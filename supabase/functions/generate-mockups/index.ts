@@ -65,7 +65,7 @@ serve(async (req) => {
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
       sendProgress("Gerüstplane wird vorbereitet...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner-optimized.jpg`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
               
               const scaffoldMockupUrl = await editMockupWithLogo(
                 templateUrl,
@@ -96,7 +96,7 @@ serve(async (req) => {
     if (projectData.fence_enabled || projectData.fenceEnabled) {
       sendProgress("Bauzaunbanner wird vorbereitet...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner-optimized.jpg`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
               
               const fenceMockupUrl = await editMockupWithLogo(
                 templateUrl,
@@ -179,7 +179,7 @@ serve(async (req) => {
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
       console.log("Generating scaffold mockup...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner-optimized.jpg`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
       
       const scaffoldMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -208,7 +208,7 @@ serve(async (req) => {
     if (projectData.fence_enabled || projectData.fenceEnabled) {
       console.log("Generating fence mockup...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner-optimized.jpg`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
       
       const fenceMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -323,57 +323,77 @@ function selectVehicleTemplate(projectData: any): string {
   
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   
-  // Use optimized JPEG versions for AI processing (800x600, 85% quality)
+  // Use original PNG versions (will be optimized on-the-fly)
   if (brand === "ford") {
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/ford-transporter-optimized.jpg`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/ford-transporter.png`;
   }
   if (brand === "vw" || brand === "volkswagen") {
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/vw-transporter-optimized.jpg`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/vw-transporter.png`;
   }
   if (brand === "mercedes") {
     if (body === "sprinter") {
-      return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-sprinter-optimized.jpg`;
+      return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-sprinter.png`;
     }
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter-optimized.jpg`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter.png`;
   }
   
-  // Fallback to Mercedes Transporter
-  return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter-optimized.jpg`;
+  // Fallback to Ford Transporter
+  return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/ford-transporter.png`;
 }
 
-// Helper function to resize image if too large
-async function resizeImageIfNeeded(blob: Blob, maxSizeKB: number = 1024): Promise<Blob> {
+// Helper function to optimize image (resize + compress to JPEG)
+async function optimizeImage(blob: Blob, maxWidth: number = 800, maxHeight: number = 600): Promise<Blob> {
   const sizeKB = blob.size / 1024;
-  
-  if (sizeKB <= maxSizeKB) {
-    return blob;
-  }
-  
-  console.log(`Image too large (${sizeKB.toFixed(1)} KB), resizing...`);
+  console.log(`[optimize] Original: ${sizeKB.toFixed(2)} KB`);
   
   try {
     const { Image } = await import("https://deno.land/x/imagescript@1.2.15/mod.ts");
-    const arrayBuffer = await blob.arrayBuffer();
-    const image = await Image.decode(new Uint8Array(arrayBuffer));
+    const buffer = await blob.arrayBuffer();
+    const image = await Image.decode(new Uint8Array(buffer));
     
-    // Calculate scale factor to reach target size (rough estimate)
-    const scaleFactor = Math.sqrt(maxSizeKB / sizeKB);
-    const newWidth = Math.round(image.width * scaleFactor);
-    const newHeight = Math.round(image.height * scaleFactor);
+    console.log(`[optimize] Dimensions: ${image.width}x${image.height}`);
     
-    console.log(`Resizing from ${image.width}x${image.height} to ${newWidth}x${newHeight}`);
+    // Calculate new dimensions (maintain aspect ratio)
+    let newWidth = image.width;
+    let newHeight = image.height;
+    
+    if (image.width > maxWidth || image.height > maxHeight) {
+      const widthRatio = maxWidth / image.width;
+      const heightRatio = maxHeight / image.height;
+      const ratio = Math.min(widthRatio, heightRatio);
+      
+      newWidth = Math.floor(image.width * ratio);
+      newHeight = Math.floor(image.height * ratio);
+      
+      console.log(`[optimize] Resizing to: ${newWidth}x${newHeight}`);
+    }
     
     const resized = image.resize(newWidth, newHeight);
-    const resizedBuffer = await resized.encodeJPEG(85);
-    const resizedSizeKB = resizedBuffer.byteLength / 1024;
+    const optimizedBuffer = await resized.encodeJPEG(85);
     
-    console.log(`Resized to ${resizedSizeKB.toFixed(1)} KB`);
+    const optimizedBlob = new Blob([new Uint8Array(optimizedBuffer)], { type: 'image/jpeg' });
+    const optimizedSizeKB = optimizedBlob.size / 1024;
     
-    return new Blob([new Uint8Array(resizedBuffer)], { type: "image/jpeg" });
+    console.log(`[optimize] Result: ${optimizedSizeKB.toFixed(2)} KB (${((1 - optimizedSizeKB/sizeKB) * 100).toFixed(1)}% reduction)`);
+    return optimizedBlob;
   } catch (error) {
-    console.error("Failed to resize image:", error);
-    return blob; // Return original if resize fails
+    console.error('[optimize] Failed:', error);
+    return blob; // Return original if optimization fails
   }
+}
+
+// Helper function to resize image if too large
+async function resizeImageIfNeeded(blob: Blob, maxSizeKB: number = 512): Promise<Blob> {
+  const sizeKB = blob.size / 1024;
+  console.log(`[resize] Size: ${sizeKB.toFixed(2)} KB`);
+  
+  if (sizeKB <= maxSizeKB) {
+    console.log(`[resize] Already under ${maxSizeKB}KB`);
+    return blob;
+  }
+
+  console.log(`[resize] Reducing from ${sizeKB.toFixed(2)} KB to target ${maxSizeKB} KB`);
+  return optimizeImage(blob, 1024, 768);
 }
 
 async function editMockupWithLogo(
@@ -596,6 +616,13 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
       const templateSizeKB = (templateBlob.size / 1024).toFixed(1);
       const templateSizeMB = (templateBlob.size / (1024 * 1024)).toFixed(2);
       console.log(`✓ Template loaded: ${templateSizeKB} KB (${templateSizeMB} MB)`);
+      
+      // Optimize template on-the-fly to 800x600 JPEG
+      console.log("Optimizing template...");
+      onProgress?.("Template wird optimiert...");
+      templateBlob = await optimizeImage(templateBlob, 800, 600);
+      const optimizedSizeKB = (templateBlob.size / 1024).toFixed(2);
+      console.log(`✓ Template optimized to: ${optimizedSizeKB} KB`);
       
       onProgress?.("Logo wird geladen...");
       console.log("Fetching logo image from:", logoUrl);
