@@ -537,22 +537,17 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
   try {
     onProgress?.("Template wird geladen...");
     
-    // Fetch and convert images to base64
+    // Fetch template image and convert to base64
     console.log("Fetching template image from:", templateUrl);
     const templateResponse = await fetch(templateUrl);
     if (!templateResponse.ok) {
       throw new Error(`Failed to fetch template: ${templateResponse.status}`);
     }
-    let templateBlob = await templateResponse.blob();
+    const templateBlob = await templateResponse.blob();
     
-    // Check and log template size
+    // Check template size
     const templateSize = templateBlob.size / (1024 * 1024);
     console.log(`Template image size: ${templateSize.toFixed(2)} MB`);
-    
-    // Resize if needed
-    templateBlob = await resizeImage(templateBlob);
-    const templateBase64 = await blobToBase64(templateBlob);
-    console.log("Template image processed");
     
     onProgress?.("Logo wird geladen...");
     console.log("Fetching logo image from:", logoUrl);
@@ -560,30 +555,31 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
     if (!logoResponse.ok) {
       throw new Error(`Failed to fetch logo: ${logoResponse.status}`);
     }
-    let logoBlob = await logoResponse.blob();
+    const logoBlob = await logoResponse.blob();
     
-    // Check and log logo size
+    // Check logo size
     const logoSize = logoBlob.size / (1024 * 1024);
     console.log(`Logo image size: ${logoSize.toFixed(2)} MB`);
     
-    // Resize if needed
-    logoBlob = await resizeImage(logoBlob);
+    // Convert to base64
+    const templateBase64 = await blobToBase64(templateBlob);
     const logoBase64 = await blobToBase64(logoBlob);
-    console.log("Logo image processed");
+    console.log("Images converted to base64");
     
-    onProgress?.("Logo wird integriert...");
+    onProgress?.("Logo und Text werden integriert...");
     
-    // Use a simpler prompt for better compatibility
-    const simplePrompt = `Add this logo and company branding to the template image:
+    // Create a focused prompt for Nano Banana
+    const brandingPrompt = `Edit this ${mockupType} mockup template by adding the following branding elements:
 
+Logo: Add the provided logo prominently on the design
 Company: ${brandData.companyName}
-Slogan: ${brandData.slogan}
-Contact: ${[brandData.phone, brandData.website].filter(Boolean).join(" | ")}
-Colors: ${brandData.primaryColor}
+Slogan: "${brandData.slogan}"
+Contact: ${brandData.phone || ''} ${brandData.website || ''}
+Primary Color: ${brandData.primaryColor}
 
-Place the logo prominently and add the text in a professional layout matching the ${mockupType} design.`;
+Make it look professional and well-designed. Place the logo and text naturally on the template.`;
     
-    console.log("Calling AI Gateway with processed images...");
+    console.log("Calling Nano Banana for image editing...");
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -591,14 +587,14 @@ Place the logo prominently and add the text in a professional layout matching th
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-flash-image-preview",
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: simplePrompt
+                text: brandingPrompt
               },
               {
                 type: "image_url",
@@ -615,39 +611,34 @@ Place the logo prominently and add the text in a professional layout matching th
             ]
           }
         ],
-        max_tokens: 1000
+        modalities: ["image", "text"]
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Lovable AI Gateway error:", response.status, errorText);
-      console.error("Template size check:", templateSize.toFixed(2), "MB");
-      console.error("Logo size check:", logoSize.toFixed(2), "MB");
+      console.error("Nano Banana error:", response.status, errorText);
+      console.error("Template size:", templateSize.toFixed(2), "MB");
+      console.error("Logo size:", logoSize.toFixed(2), "MB");
       
-      // For now, return template URL as fallback instead of failing
-      console.log("Falling back to template URL due to AI processing error");
+      // Log the error but return template as fallback
+      console.log("⚠️ AI processing failed, using template as fallback");
       onProgress?.("⚠️ KI-Verarbeitung fehlgeschlagen, Template wird verwendet");
       return templateUrl;
     }
 
     const data = await response.json();
-    console.log("Lovable AI response received");
-
-    // Check if we got a text response (description) instead of an image
-    const textContent = data.choices?.[0]?.message?.content;
-    if (textContent && typeof textContent === 'string') {
-      console.log("Received text response instead of image, using template as fallback");
-      onProgress?.("⚠️ Bildbearbeitung nicht verfügbar, Template wird verwendet");
-      return templateUrl;
-    }
+    console.log("Nano Banana response received");
 
     // Extract the edited image
     const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     
     if (!editedImageUrl) {
-      console.error("No image returned from AI Gateway");
-      console.log("Using template as fallback");
+      console.log("No image in response, checking for text...");
+      const textContent = data.choices?.[0]?.message?.content;
+      console.log("Response content:", textContent ? "text response" : "no content");
+      
+      // Use template as fallback
       onProgress?.("⚠️ Keine Bildantwort erhalten, Template wird verwendet");
       return templateUrl;
     }
