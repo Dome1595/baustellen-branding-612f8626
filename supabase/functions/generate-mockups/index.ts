@@ -95,6 +95,11 @@ Das Design soll auf einem Bauzaun an einer Straße zu sehen sein.`;
 });
 
 async function generateImage(prompt: string, apiKey: string): Promise<string> {
+  // Optimize prompt for image generation
+  const imagePrompt = `Generate a realistic mockup image: ${prompt}
+
+IMPORTANT: Generate an actual image, not a description.`;
+
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -106,7 +111,7 @@ async function generateImage(prompt: string, apiKey: string): Promise<string> {
       messages: [
         {
           role: 'user',
-          content: prompt
+          content: imagePrompt
         }
       ],
       modalities: ['image', 'text']
@@ -129,13 +134,24 @@ async function generateImage(prompt: string, apiKey: string): Promise<string> {
 
   const data = await response.json();
   console.log('Lovable AI response received');
+  console.log('Response structure:', JSON.stringify({
+    model: data.model,
+    hasImages: !!data.choices?.[0]?.message?.images,
+    messageKeys: Object.keys(data.choices?.[0]?.message || {}),
+    fullResponse: data
+  }, null, 2));
   
-  // Extract base64 image from response
-  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  // Extract base64 image from response - check multiple possible locations
+  let imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  
+  // Try alternative response structure
+  if (!imageUrl && data.choices?.[0]?.message?.images?.[0]) {
+    imageUrl = data.choices[0].message.images[0];
+  }
   
   if (!imageUrl) {
-    console.error('No image in response:', JSON.stringify(data, null, 2));
-    throw new Error('No image generated');
+    console.error('No image in response. Full data:', JSON.stringify(data, null, 2));
+    throw new Error('No image generated - model may not support image generation or requires different parameters');
   }
   
   return imageUrl;
