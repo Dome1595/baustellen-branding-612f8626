@@ -191,14 +191,25 @@ const Review = () => {
           <Card className="mb-8 p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-2xl font-semibold">Mockup-Vorschau</h2>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(-1)}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Änderungen vornehmen
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={generateMockups}
+                  disabled={isGeneratingMockups || isUploadingTemplates}
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4 rotate-180" />
+                  Neu generieren
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(-1)}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Änderungen vornehmen
+                </Button>
+              </div>
             </div>
 
             {isUploadingTemplates ? (
