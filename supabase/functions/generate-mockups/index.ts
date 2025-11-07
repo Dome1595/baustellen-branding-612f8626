@@ -35,37 +35,26 @@ serve(async (req) => {
       if (projectData.website) contactInfo.push(`Website: ${projectData.website}`);
       if (projectData.address) contactInfo.push(`Address: ${projectData.address}`);
 
-      // STEP 1: Generate clean base mockup with Langdock FLUX
-      const vehiclePrompt = `Create a highly realistic photographic mockup of a white commercial van (Mercedes Sprinter style).
+      const vehiclePrompt = `Create a highly realistic photographic mockup of a white commercial van with vehicle branding.
 
-Requirements:
-- Professional side view showing the entire van
-- White, clean vehicle surface
-- Realistic lighting and shadows
-- Construction or urban work environment background
-- Large, smooth side panel area perfect for branding
-- High resolution, photorealistic quality
-- No text, logos, or graphics on the van - completely clean white surface
+Company: ${projectData.company_name || projectData.companyName}
+Slogan: "${projectData.slogan_selected || projectData.selectedSlogan}"
+Contact: ${contactInfo.join(' | ')}
+Brand Colors: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}
 
-CRITICAL: This must be a clean, realistic photograph of a white commercial van with a blank side panel, ready for branding to be added later.`;
+Design Requirements:
+- Show the company name in LARGE, bold, professional lettering using the primary brand color (${projectData.primary_color || projectData.primaryColor})
+- ${logoUrl ? 'Use the EXACT company logo provided in the image above - place it prominently on the van\'s side panel' : 'Display a prominent company logo symbol/icon on the van\'s side panel'}
+- Include the slogan "${projectData.slogan_selected || projectData.selectedSlogan}" below the company name in a complementary font
+- Add contact information in smaller text: ${contactInfo.join(', ')}
+- The design should be ${(projectData.creativity_level || projectData.creativityLevel) === 3 ? 'modern and creative with dynamic elements' : (projectData.creativity_level || projectData.creativityLevel) === 2 ? 'contemporary and professional' : 'traditional and conservative'}
+- Use the brand colors (${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}) throughout the design
+- Show a realistic white commercial van (Mercedes Sprinter or similar) in a construction site setting
+- The branding should look professionally vinyl-wrapped on the vehicle with visible company logo, name, slogan, and contact details
 
-      console.log('STEP 1: Generating clean base vehicle mockup with FLUX...');
-      const baseVehicleUrl = await generateImageWithLangdock(vehiclePrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID);
-      
-      // STEP 2: Add logo and text with Lovable AI
-      console.log('STEP 2: Adding logo and branding with Lovable AI...');
-      const vehicleResponse = await editMockupWithLogo(
-        baseVehicleUrl,
-        logoUrl,
-        {
-          companyName: projectData.company_name || projectData.companyName,
-          slogan: projectData.slogan_selected || projectData.selectedSlogan,
-          contact: contactInfo.join(' | '),
-          primaryColor: projectData.primary_color || projectData.primaryColor,
-          secondaryColor: projectData.secondary_color || projectData.secondaryColor,
-          creativityLevel: projectData.creativity_level || projectData.creativityLevel
-        }
-      );
+CRITICAL: This must be a realistic photograph, not an illustration. The van should have clearly visible text with company name, logo, slogan, and contact information.`;
+
+      const vehicleResponse = await generateImageWithLangdock(vehiclePrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID, logoUrl);
       mockups.push({
         type: 'vehicle',
         url: vehicleResponse,
@@ -78,37 +67,26 @@ CRITICAL: This must be a clean, realistic photograph of a white commercial van w
       if (projectData.phone) contactInfo.push(projectData.phone);
       if (projectData.website) contactInfo.push(projectData.website);
 
-      // STEP 1: Generate clean base scaffolding mockup
-      const scaffoldPrompt = `Create a highly realistic photographic mockup of construction scaffolding with a large blank banner/mesh.
+      const scaffoldPrompt = `Create a highly realistic photographic mockup of construction scaffolding with a large branded banner/mesh.
 
-Requirements:
-- Professional construction site with scaffolding on building facade
-- Large white/neutral colored banner covering significant portion of scaffolding
-- Banner should be clean, smooth, and ready for graphics
-- Realistic lighting and urban construction environment
-- Street-level perspective showing entire banner clearly
-- High resolution, photorealistic quality
-- No text, logos, or graphics on the banner - completely blank surface
+Company: ${projectData.company_name || projectData.companyName}
+Slogan: "${projectData.slogan_selected || projectData.selectedSlogan}"
+Contact: ${contactInfo.join(' | ')}
+Brand Colors: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}
 
-CRITICAL: This must be a realistic photograph of construction scaffolding with a blank banner, ready for branding to be added later.`;
+Design Requirements:
+- Large-scale banner visible from street level covering significant portion of scaffolding
+- ${logoUrl ? 'Use the EXACT company logo provided in the image above - display it prominently at the top of the banner' : 'Company logo symbol prominently displayed at the top'}
+- Company name "${projectData.company_name || projectData.companyName}" in HUGE, bold, readable lettering using primary color
+- Slogan "${projectData.slogan_selected || projectData.selectedSlogan}" visible and legible from distance
+- Contact information (${contactInfo.join(', ')}) clearly displayed
+- Professional construction site appearance with realistic scaffolding on a building facade
+- Use specified brand colors (${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor})
+- Banner should show logo symbol, company name, slogan, and contact details
 
-      console.log('STEP 1: Generating clean base scaffold mockup with FLUX...');
-      const baseScaffoldUrl = await generateImageWithLangdock(scaffoldPrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID);
-      
-      // STEP 2: Add logo and text with Lovable AI
-      console.log('STEP 2: Adding logo and branding to scaffold with Lovable AI...');
-      const scaffoldResponse = await editMockupWithLogo(
-        baseScaffoldUrl,
-        logoUrl,
-        {
-          companyName: projectData.company_name || projectData.companyName,
-          slogan: projectData.slogan_selected || projectData.selectedSlogan,
-          contact: contactInfo.join(', '),
-          primaryColor: projectData.primary_color || projectData.primaryColor,
-          secondaryColor: projectData.secondary_color || projectData.secondaryColor,
-          creativityLevel: projectData.creativity_level || projectData.creativityLevel
-        }
-      );
+CRITICAL: This must be a realistic photograph of an actual construction site with the branded banner displaying all text and logo clearly visible.`;
+
+      const scaffoldResponse = await generateImageWithLangdock(scaffoldPrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID, logoUrl);
       mockups.push({
         type: 'scaffold',
         url: scaffoldResponse,
@@ -121,37 +99,28 @@ CRITICAL: This must be a realistic photograph of construction scaffolding with a
       if (projectData.phone) contactInfo.push(projectData.phone);
       if (projectData.website) contactInfo.push(projectData.website);
 
-      // STEP 1: Generate clean base fence mockup
-      const fencePrompt = `Create a highly realistic photographic mockup of construction site fence with blank banners.
+      const fencePrompt = `Create a highly realistic photographic mockup of construction site fence banners.
 
-Requirements:
-- Multiple connected banner panels (${projectData.fence_fields || projectData.fenceFields || 3} panels) on orange/yellow construction fence
-- Banners should be white/neutral and completely blank
-- Professional construction site environment
-- Realistic lighting and urban setting
-- Banners stretched taut across fence panels
-- High resolution, photorealistic quality
-- No text, logos, or graphics on the banners - completely clean surface
+Company: ${projectData.company_name || projectData.companyName}
+Slogan: "${projectData.slogan_selected || projectData.selectedSlogan}"
+Contact: ${contactInfo.join(' | ')}
+Brand Colors: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}
+Number of panels: ${projectData.fence_fields || projectData.fenceFields || 3}
 
-CRITICAL: This must be a realistic photograph of construction site fence with blank banners, ready for branding to be added later.`;
+Design Requirements:
+- Multiple connected banner panels (${projectData.fence_fields || projectData.fenceFields || 3} panels) on construction fencing
+- ${logoUrl ? 'Use the EXACT company logo provided in the image above - display it clearly on the banners' : 'Company logo symbol clearly visible on the banners'}
+- Company name "${projectData.company_name || projectData.companyName}" in bold lettering using primary color
+- Slogan "${projectData.slogan_selected || projectData.selectedSlogan}" prominently displayed
+- Contact information displayed: ${contactInfo.join(', ')}
+- Professional construction site fence appearance with banners stretched across orange/yellow construction fence panels
+- Design should span multiple fence sections seamlessly
+- Use specified brand colors (${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor})
+- Show logo symbol, company name, slogan, and contact info on the fence banners
 
-      console.log('STEP 1: Generating clean base fence mockup with FLUX...');
-      const baseFenceUrl = await generateImageWithLangdock(fencePrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID);
-      
-      // STEP 2: Add logo and text with Lovable AI
-      console.log('STEP 2: Adding logo and branding to fence with Lovable AI...');
-      const fenceResponse = await editMockupWithLogo(
-        baseFenceUrl,
-        logoUrl,
-        {
-          companyName: projectData.company_name || projectData.companyName,
-          slogan: projectData.slogan_selected || projectData.selectedSlogan,
-          contact: contactInfo.join(', '),
-          primaryColor: projectData.primary_color || projectData.primaryColor,
-          secondaryColor: projectData.secondary_color || projectData.secondaryColor,
-          creativityLevel: projectData.creativity_level || projectData.creativityLevel
-        }
-      );
+CRITICAL: This must be a realistic photograph of actual construction site fence with branded banners clearly showing all text and logo.`;
+
+      const fenceResponse = await generateImageWithLangdock(fencePrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID, logoUrl);
       mockups.push({
         type: 'fence',
         url: fenceResponse,
@@ -174,280 +143,69 @@ CRITICAL: This must be a realistic photograph of construction site fence with bl
   }
 });
 
-// STEP 2: Edit mockup with logo and text using Lovable AI
-async function editMockupWithLogo(
-  baseMockupUrl: string,
-  logoUrl: string | undefined,
-  brandData: {
-    companyName: string;
-    slogan: string;
-    contact: string;
-    primaryColor: string;
-    secondaryColor: string;
-    creativityLevel?: number;
-  }
-): Promise<string> {
-  try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    console.log('Editing mockup with Lovable AI. Base mockup:', baseMockupUrl);
-    
-    // Build optimized editing prompt for maximum quality
-    const styleDescription = brandData.creativityLevel === 3 
-      ? 'modern, creative, and dynamic style' 
-      : brandData.creativityLevel === 2 
-      ? 'contemporary and professional style' 
-      : 'traditional and conservative style';
-    
-    const editPrompt = logoUrl 
-      ? `PROFESSIONAL VEHICLE/CONSTRUCTION BRANDING - HIGH QUALITY MOCKUP EDITING
-
-**CRITICAL QUALITY REQUIREMENTS:**
-- Output must be ULTRA HIGH RESOLUTION with razor-sharp clarity
-- ALL text must be CRYSTAL CLEAR, perfectly sharp, and 100% readable
-- Logo must maintain perfect quality and clarity
-- Colors must be vibrant, accurate, and professionally rendered
-- Final result must look like premium professional vinyl graphics/wrapping
-- MATTE LAMINATE finish: polarizing filter look, NO specular highlights on glyphs/letters
-- Respect vehicle seams: split decals at panel gaps; avoid spanning over deep recesses
-
-**STEP-BY-STEP BRANDING INSTRUCTIONS:**
-
-1. LOGO INTEGRATION:
-   - Fetch the company logo from: ${logoUrl}
-   - Maintain ORIGINAL logo quality - no degradation or blur
-   - Place logo prominently on the vehicle/surface (upper left or center area)
-   - Size: Logo should be clearly visible but proportional (15-20% of branding area)
-   - Ensure logo has perfect clarity and sharp edges
-   - CRITICAL: Respect panel seams - split logo across gaps if necessary
-
-2. COMPANY NAME:
-   - Text: "${brandData.companyName}"
-   - Font: BOLD, EXTRA LARGE, ultra-professional sans-serif typeface
-   - Color: Use DARKER NAVY shade of ${brandData.primaryColor} for better contrast
-   - Add thin white outline (1-2mm) for enhanced readability
-   - Position: Next to or below logo as main focal point
-   - Size: 2-3x larger than slogan - this is the PRIMARY element
-   - Quality: Text must be RAZOR SHARP with perfect anti-aliasing
-   - Baseline: MUST BE PARALLEL to the sliding-door track; check alignment against door seam
-
-3. SLOGAN:
-   - Text: "${brandData.slogan}"
-   - Font: Professional complementary font, medium weight
-   - Color: ${brandData.secondaryColor} or subtle variant of primary
-   - Position: Directly below company name with proper spacing
-   - Size: Medium - clearly readable from distance (increase if too small)
-   - Quality: SHARP and perfectly legible
-   - Baseline: MUST BE PARALLEL to vehicle panel lines
-
-4. CONTACT INFORMATION:
-   - Text: ${brandData.contact}
-   - Font: Clean, professional, highly readable
-   - Color: ${brandData.primaryColor} or contrasting color for visibility
-   - Position: Lower area or bottom right of branding space
-   - Size: Make LARGER if current size appears too small - prioritize readability
-   - Content: Use clear separators "|" with adequate spacing - DO NOT make text too dense
-   - Quality: Sharp and clear
-   - Baseline: PARALLEL to vehicle structure
-
-5. DESIGN STYLE:
-   - Overall aesthetic: ${styleDescription}
-   - Layout: Professional, balanced, with proper white space
-   - Hierarchy: Logo + Company Name (primary) → Slogan (secondary) → Contact (tertiary)
-   - Colors: Use darker navy version of ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
-   - Integration: Make branding look like real vinyl wrap/decals with subtle shadows and reflections matching the vehicle surface
-   - Surface finish: MATTE laminate appearance - no glossy highlights on text
-
-6. QUALITY ASSURANCE:
-   - Text rendering: ULTRA SHARP - no blur, no pixelation, MATTE finish
-   - Logo quality: PRISTINE - maintain original resolution and clarity
-   - Color accuracy: EXACT match to specified hex colors (use darker navy variants)
-   - Contrast: Ensure sufficient contrast with 1-2mm white outline on dark text
-   - Professional finish: Must look like $5000+ professional vehicle wrap job
-   - Realism: Subtle reflections, proper shadows, vinyl texture with MATTE laminate look
-   - Seam respect: Split graphics at panel gaps, avoid deep recesses
-   - Alignment: ALL baselines parallel to sliding-door track and door seams
-   - Gloss control: NO specular highlights on letters/glyphs - matte finish only
-   - Scale: Increase font sizes if elements appear too small or cramped
-
-FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, professionally executed with matte finish and proper seam handling.`
-      : `PROFESSIONAL VEHICLE/CONSTRUCTION BRANDING - HIGH QUALITY MOCKUP EDITING
-
-**CRITICAL QUALITY REQUIREMENTS:**
-- Output must be ULTRA HIGH RESOLUTION with razor-sharp clarity
-- ALL text must be CRYSTAL CLEAR, perfectly sharp, and 100% readable
-- Colors must be vibrant, accurate, and professionally rendered
-- Final result must look like premium professional vinyl graphics/wrapping
-- MATTE LAMINATE finish: polarizing filter look, NO specular highlights on glyphs/letters
-- Respect vehicle seams: split decals at panel gaps; avoid spanning over deep recesses
-
-**STEP-BY-STEP BRANDING INSTRUCTIONS:**
-
-1. LOGO CREATION:
-   - Create a simple, professional logo icon/symbol representing construction/trades
-   - Style: Clean, modern, and memorable
-   - Color: Use darker navy shade of ${brandData.primaryColor}
-   - Position: Upper left or center area of branding space
-   - Size: Prominent but proportional (15-20% of branding area)
-   - Quality: SHARP vector-style clarity
-   - CRITICAL: Respect panel seams - split logo across gaps if necessary
-
-2. COMPANY NAME:
-   - Text: "${brandData.companyName}"
-   - Font: BOLD, EXTRA LARGE, ultra-professional sans-serif typeface
-   - Color: Use DARKER NAVY shade of ${brandData.primaryColor} for better contrast
-   - Add thin white outline (1-2mm) for enhanced readability
-   - Position: Next to or below logo as main focal point
-   - Size: 2-3x larger than slogan - this is the PRIMARY element
-   - Quality: Text must be RAZOR SHARP with perfect anti-aliasing
-   - Baseline: MUST BE PARALLEL to the sliding-door track; check alignment against door seam
-
-3. SLOGAN:
-   - Text: "${brandData.slogan}"
-   - Font: Professional complementary font, medium weight
-   - Color: ${brandData.secondaryColor} or subtle variant of primary
-   - Position: Directly below company name with proper spacing
-   - Size: Medium - clearly readable from distance (increase if too small)
-   - Quality: SHARP and perfectly legible
-   - Baseline: MUST BE PARALLEL to vehicle panel lines
-
-4. CONTACT INFORMATION:
-   - Text: ${brandData.contact}
-   - Font: Clean, professional, highly readable
-   - Color: ${brandData.primaryColor} or contrasting color for visibility
-   - Position: Lower area or bottom right of branding space
-   - Size: Make LARGER if current size appears too small - prioritize readability
-   - Content: Use clear separators "|" with adequate spacing - DO NOT make text too dense
-   - Quality: Sharp and clear
-   - Baseline: PARALLEL to vehicle structure
-
-5. DESIGN STYLE:
-   - Overall aesthetic: ${styleDescription}
-   - Layout: Professional, balanced, with proper white space
-   - Hierarchy: Logo + Company Name (primary) → Slogan (secondary) → Contact (tertiary)
-   - Colors: Use darker navy version of ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
-   - Integration: Make branding look like real vinyl wrap/decals with subtle shadows and reflections
-   - Surface finish: MATTE laminate appearance - no glossy highlights on text
-
-6. QUALITY ASSURANCE:
-   - Text rendering: ULTRA SHARP - no blur, no pixelation, MATTE finish
-   - Color accuracy: EXACT match to specified hex colors (use darker navy variants)
-   - Contrast: Ensure sufficient contrast with 1-2mm white outline on dark text
-   - Professional finish: Must look like $5000+ professional vehicle wrap job
-   - Realism: Subtle reflections, proper shadows, vinyl texture with MATTE laminate look
-   - Seam respect: Split graphics at panel gaps, avoid deep recesses
-   - Alignment: ALL baselines parallel to sliding-door track and door seams
-   - Gloss control: NO specular highlights on letters/glyphs - matte finish only
-   - Scale: Increase font sizes if elements appear too small or cramped
-
-FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, professionally executed with matte finish and proper seam handling.`;
-
-
-    // Call Lovable AI Gateway with image editing
-    const messages: any[] = [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: editPrompt
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: baseMockupUrl
-            }
-          }
-        ]
-      }
-    ];
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
-        messages: messages,
-        modalities: ['image', 'text']
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Lovable AI error:', response.status, errorText);
-      throw new Error(`Lovable AI failed: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    console.log('Lovable AI response received');
-
-    // Extract the edited image
-    const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
-    if (!editedImageUrl) {
-      console.error('No edited image in Lovable AI response');
-      throw new Error('No edited image returned from Lovable AI');
-    }
-
-    // If it's a base64 data URL, upload to Supabase Storage
-    if (editedImageUrl.startsWith('data:image')) {
-      console.log('Uploading edited image to Supabase Storage...');
-      
-      const base64Data = editedImageUrl.split(',')[1];
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      const fileName = `edited-mockup-${Date.now()}.png`;
-      const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-      const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-      
-      const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/mockups/${fileName}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'image/png',
-          'x-upsert': 'true',
-        },
-        body: bytes,
-      });
-      
-      if (uploadResponse.ok) {
-        const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/mockups/${fileName}`;
-        console.log('Edited image uploaded to Storage:', publicUrl);
-        return publicUrl;
-      } else {
-        const errorText = await uploadResponse.text();
-        console.error('Failed to upload edited image:', uploadResponse.status, errorText);
-        return editedImageUrl; // Fallback to data URL
-      }
-    }
-
-    return editedImageUrl;
-  } catch (error) {
-    console.error('Error editing mockup with Lovable AI:', error);
-    throw error;
-  }
-}
-
-// STEP 1: Generate clean base mockup with Langdock FLUX
 async function generateImageWithLangdock(
   prompt: string, 
   apiKey: string, 
-  assistantId: string
+  assistantId: string,
+  logoUrl?: string
 ): Promise<string> {
   try {
-    console.log('Generating clean base mockup with Langdock FLUX');
+    console.log('Starting Langdock image generation with assistant:', assistantId);
     
-    // Call Langdock Assistant API for clean base mockup (no logo needed)
+    let attachmentId: string | undefined;
+    
+    // If logo is provided, upload it to Langdock first
+    if (logoUrl) {
+      const fullLogoUrl = logoUrl.startsWith('http') ? logoUrl : `https://${logoUrl}`;
+      console.log('Uploading logo to Langdock:', fullLogoUrl);
+      
+      try {
+        // Fetch the logo file
+        const logoResponse = await fetch(fullLogoUrl);
+        if (!logoResponse.ok) {
+          console.error('Failed to fetch logo:', logoResponse.status);
+        } else {
+          const logoBlob = await logoResponse.blob();
+          
+          // Upload to Langdock
+          const formData = new FormData();
+          formData.append('file', logoBlob, 'logo.png');
+          
+          const uploadResponse = await fetch('https://api.langdock.com/v1/files', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            body: formData,
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            attachmentId = uploadData.id;
+            console.log('Logo uploaded successfully, attachmentId:', attachmentId);
+          } else {
+            const errorText = await uploadResponse.text();
+            console.error('Failed to upload logo to Langdock:', uploadResponse.status, errorText);
+          }
+        }
+      } catch (uploadError) {
+        console.error('Error uploading logo:', uploadError);
+      }
+    }
+    
+    // Build message content
+    const messageContent: any = {
+      role: 'user',
+      content: prompt
+    };
+    
+    // Add attachmentId if logo was uploaded
+    if (attachmentId) {
+      messageContent.attachmentIds = [attachmentId];
+      messageContent.content = `${prompt}\n\nIMPORTANT: Use the attached company logo image. Incorporate it prominently in the mockup design.`;
+    }
+
+    // Call Langdock Assistant API
     const response = await fetch('https://api.langdock.com/assistant/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -456,10 +214,7 @@ async function generateImageWithLangdock(
       },
       body: JSON.stringify({
         assistantId: assistantId,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }],
+        messages: [messageContent],
         stream: false
       }),
     });
