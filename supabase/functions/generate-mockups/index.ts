@@ -413,7 +413,27 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
   try {
     console.log("Calling Lovable AI Gateway for image editing...");
     
+    // Fetch and convert images to base64
+    console.log("Fetching template image from:", templateUrl);
+    const templateResponse = await fetch(templateUrl);
+    if (!templateResponse.ok) {
+      throw new Error(`Failed to fetch template: ${templateResponse.status}`);
+    }
+    const templateBlob = await templateResponse.blob();
+    const templateBase64 = await blobToBase64(templateBlob);
+    console.log("Template image fetched and converted to base64");
+    
+    console.log("Fetching logo image from:", logoUrl);
+    const logoResponse = await fetch(logoUrl);
+    if (!logoResponse.ok) {
+      throw new Error(`Failed to fetch logo: ${logoResponse.status}`);
+    }
+    const logoBlob = await logoResponse.blob();
+    const logoBase64 = await blobToBase64(logoBlob);
+    console.log("Logo image fetched and converted to base64");
+    
     // Call Lovable AI Gateway with Nano Banana for image editing
+    console.log("Calling AI Gateway with base64 images...");
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -433,13 +453,13 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
               {
                 type: "image_url",
                 image_url: {
-                  url: templateUrl
+                  url: templateBase64
                 }
               },
               {
                 type: "image_url",
                 image_url: {
-                  url: logoUrl
+                  url: logoBase64
                 }
               }
             ]
@@ -479,6 +499,19 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
     console.error("Error in editMockupWithLogo:", error);
     throw error;
   }
+}
+
+// Helper function to convert Blob to base64 data URL
+async function blobToBase64(blob: Blob): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  const mimeType = blob.type || 'image/png';
+  return `data:${mimeType};base64,${base64}`;
 }
 
 async function uploadBase64Image(base64Data: string, filename: string): Promise<string> {
