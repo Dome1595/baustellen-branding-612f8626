@@ -65,7 +65,7 @@ serve(async (req) => {
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
       sendProgress("Gerüstplane wird vorbereitet...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner-optimized.jpg`;
               
               const scaffoldMockupUrl = await editMockupWithLogo(
                 templateUrl,
@@ -96,7 +96,7 @@ serve(async (req) => {
     if (projectData.fence_enabled || projectData.fenceEnabled) {
       sendProgress("Bauzaunbanner wird vorbereitet...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner-optimized.jpg`;
               
               const fenceMockupUrl = await editMockupWithLogo(
                 templateUrl,
@@ -179,7 +179,7 @@ serve(async (req) => {
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
       console.log("Generating scaffold mockup...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner.png`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/scaffold-banner-optimized.jpg`;
       
       const scaffoldMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -208,7 +208,7 @@ serve(async (req) => {
     if (projectData.fence_enabled || projectData.fenceEnabled) {
       console.log("Generating fence mockup...");
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner.png`;
+      const templateUrl = `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/fence-banner-optimized.jpg`;
       
       const fenceMockupUrl = await editMockupWithLogo(
         templateUrl,
@@ -323,22 +323,57 @@ function selectVehicleTemplate(projectData: any): string {
   
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   
-  // Try optimized versions first, fallback to original
+  // Use optimized JPEG versions for AI processing (800x600, 85% quality)
   if (brand === "ford") {
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/ford-transporter.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/ford-transporter-optimized.jpg`;
   }
   if (brand === "vw" || brand === "volkswagen") {
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/vw-transporter.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/vw-transporter-optimized.jpg`;
   }
   if (brand === "mercedes") {
     if (body === "sprinter") {
-      return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-sprinter.png`;
+      return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-sprinter-optimized.jpg`;
     }
-    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter.png`;
+    return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter-optimized.jpg`;
   }
   
   // Fallback to Mercedes Transporter
-  return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter.png`;
+  return `${SUPABASE_URL}/storage/v1/object/public/mockup-templates/mercedes-transporter-optimized.jpg`;
+}
+
+// Helper function to resize image if too large
+async function resizeImageIfNeeded(blob: Blob, maxSizeKB: number = 1024): Promise<Blob> {
+  const sizeKB = blob.size / 1024;
+  
+  if (sizeKB <= maxSizeKB) {
+    return blob;
+  }
+  
+  console.log(`Image too large (${sizeKB.toFixed(1)} KB), resizing...`);
+  
+  try {
+    const { Image } = await import("https://deno.land/x/imagescript@1.2.15/mod.ts");
+    const arrayBuffer = await blob.arrayBuffer();
+    const image = await Image.decode(new Uint8Array(arrayBuffer));
+    
+    // Calculate scale factor to reach target size (rough estimate)
+    const scaleFactor = Math.sqrt(maxSizeKB / sizeKB);
+    const newWidth = Math.round(image.width * scaleFactor);
+    const newHeight = Math.round(image.height * scaleFactor);
+    
+    console.log(`Resizing from ${image.width}x${image.height} to ${newWidth}x${newHeight}`);
+    
+    const resized = image.resize(newWidth, newHeight);
+    const resizedBuffer = await resized.encodeJPEG(85);
+    const resizedSizeKB = resizedBuffer.byteLength / 1024;
+    
+    console.log(`Resized to ${resizedSizeKB.toFixed(1)} KB`);
+    
+    return new Blob([new Uint8Array(resizedBuffer)], { type: "image/jpeg" });
+  } catch (error) {
+    console.error("Failed to resize image:", error);
+    return blob; // Return original if resize fails
+  }
 }
 
 async function editMockupWithLogo(
@@ -357,10 +392,12 @@ async function editMockupWithLogo(
   mockupType: "vehicle" | "scaffold" | "fence",
   onProgress?: (message: string) => void
 ): Promise<string> {
-  console.log("Starting mockup editing with Nano Banana...");
+  const startTime = Date.now();
+  console.log("=== Starting mockup editing with Nano Banana ===");
   console.log("Template URL:", templateUrl);
   console.log("Logo URL:", logoUrl);
   console.log("Mockup type:", mockupType);
+  console.log("Timestamp:", new Date().toISOString());
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
@@ -538,127 +575,223 @@ OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
   try {
     onProgress?.("Template wird geladen...");
     
-    // Fetch template image and convert to base64
+    // Fetch template image with timeout
     console.log("Fetching template image from:", templateUrl);
-    const templateResponse = await fetch(templateUrl);
-    if (!templateResponse.ok) {
-      throw new Error(`Failed to fetch template: ${templateResponse.status}`);
-    }
-    const templateBlob = await templateResponse.blob();
+    const templateController = new AbortController();
+    const templateTimeout = setTimeout(() => templateController.abort(), 30000); // 30s timeout
     
-    // Check template size
-    const templateSize = templateBlob.size / (1024 * 1024);
-    console.log(`Template image size: ${templateSize.toFixed(2)} MB`);
+    try {
+      const templateResponse = await fetch(templateUrl, {
+        signal: templateController.signal
+      });
+      clearTimeout(templateTimeout);
+      
+      if (!templateResponse.ok) {
+        const errorBody = await templateResponse.text();
+        console.error(`Template fetch failed: ${templateResponse.status}`, errorBody);
+        throw new Error(`Failed to fetch template: ${templateResponse.status} - ${errorBody}`);
+      }
+      
+      let templateBlob = await templateResponse.blob();
+      const templateSizeKB = (templateBlob.size / 1024).toFixed(1);
+      const templateSizeMB = (templateBlob.size / (1024 * 1024)).toFixed(2);
+      console.log(`✓ Template loaded: ${templateSizeKB} KB (${templateSizeMB} MB)`);
+      
+      onProgress?.("Logo wird geladen...");
+      console.log("Fetching logo image from:", logoUrl);
+      
+      // Fetch logo with timeout
+      const logoController = new AbortController();
+      const logoTimeout = setTimeout(() => logoController.abort(), 30000); // 30s timeout
+      
+      const logoResponse = await fetch(logoUrl, {
+        signal: logoController.signal
+      });
+      clearTimeout(logoTimeout);
+      
+      if (!logoResponse.ok) {
+        const errorBody = await logoResponse.text();
+        console.error(`Logo fetch failed: ${logoResponse.status}`, errorBody);
+        throw new Error(`Failed to fetch logo: ${logoResponse.status} - ${errorBody}`);
+      }
+      
+      let logoBlob = await logoResponse.blob();
+      const logoSizeKB = (logoBlob.size / 1024).toFixed(1);
+      const logoSizeMB = (logoBlob.size / (1024 * 1024)).toFixed(2);
+      console.log(`✓ Logo loaded: ${logoSizeKB} KB (${logoSizeMB} MB)`);
+      
+      // Auto-resize logo if > 1MB
+      if (logoBlob.size > 1024 * 1024) {
+        console.log("Logo too large, resizing...");
+        onProgress?.("Logo wird optimiert...");
+        logoBlob = await resizeImageIfNeeded(logoBlob, 512); // Max 512KB
+        const newLogoSizeKB = (logoBlob.size / 1024).toFixed(1);
+        console.log(`✓ Logo resized to ${newLogoSizeKB} KB`);
+      }
     
-    onProgress?.("Logo wird geladen...");
-    console.log("Fetching logo image from:", logoUrl);
-    const logoResponse = await fetch(logoUrl);
-    if (!logoResponse.ok) {
-      throw new Error(`Failed to fetch logo: ${logoResponse.status}`);
-    }
-    const logoBlob = await logoResponse.blob();
-    
-    // Check logo size
-    const logoSize = logoBlob.size / (1024 * 1024);
-    console.log(`Logo image size: ${logoSize.toFixed(2)} MB`);
-    
-    // Convert to base64
-    const templateBase64 = await blobToBase64(templateBlob);
-    const logoBase64 = await blobToBase64(logoBlob);
-    console.log("Images converted to base64");
-    
-    onProgress?.("Logo und Text werden integriert...");
-    
-    // Create a focused prompt for Nano Banana
-    const brandingPrompt = `Edit this ${mockupType} mockup template by adding the following branding elements:
-
-Logo: Add the provided logo prominently on the design
-Company: ${brandData.companyName}
-Slogan: "${brandData.slogan}"
-Contact: ${brandData.phone || ''} ${brandData.website || ''}
-Primary Color: ${brandData.primaryColor}
-
-Make it look professional and well-designed. Place the logo and text naturally on the template.`;
-    
-    console.log("Calling Nano Banana for image editing...");
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: brandingPrompt
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: templateBase64
+      // Convert to base64
+      onProgress?.("Bilder werden vorbereitet...");
+      const templateBase64 = await blobToBase64(templateBlob);
+      const logoBase64 = await blobToBase64(logoBlob);
+      console.log("✓ Images converted to base64");
+      
+      onProgress?.("KI generiert Mockup...");
+      
+      // SIMPLIFIED prompt for Nano Banana - more focused and concise
+      const brandingPrompt = mockupType === "vehicle" 
+        ? `Add branding to this vehicle's side panel:
+- Place the logo prominently
+- Add company name "${brandData.companyName}" in large, bold text
+- Add slogan "${brandData.slogan}" below it
+- Add contact info: ${brandData.phone || ''} ${brandData.website || ''}
+- Use color ${brandData.primaryColor} for main elements
+- Make it look like a professional vehicle wrap
+- Keep the vehicle and background unchanged`
+        : `Add branding to this ${mockupType} banner:
+- Center the logo at top
+- Add company name "${brandData.companyName}" in large, bold text
+- Add slogan "${brandData.slogan}" below
+- Add contact: ${brandData.phone || ''} ${brandData.website || ''}
+- Use color ${brandData.primaryColor}
+- Make it professional and centered
+- Keep the ${mockupType} structure unchanged`;
+      
+      console.log("Calling Nano Banana API...");
+      const apiStartTime = Date.now();
+      
+      // Retry logic for 400 errors
+      let lastError: Error | null = null;
+      const maxRetries = 2;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`API attempt ${attempt}/${maxRetries}`);
+          
+          const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash-image-preview",
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    {
+                      type: "text",
+                      text: brandingPrompt
+                    },
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: templateBase64
+                      }
+                    },
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: logoBase64
+                      }
+                    }
+                  ]
                 }
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: logoBase64
-                }
-              }
-            ]
+              ],
+              modalities: ["image", "text"],
+              max_tokens: 2000
+            })
+          });
+
+          const apiDuration = Date.now() - apiStartTime;
+          console.log(`API response received in ${apiDuration}ms with status ${response.status}`);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Nano Banana error (attempt ${attempt}):`, response.status);
+            console.error("Error body:", errorText);
+            console.error("Template size:", templateSizeKB, "KB");
+            console.error("Logo size:", logoSizeKB, "KB");
+            
+            if (response.status === 400 && attempt < maxRetries) {
+              console.log(`Retrying in 2 seconds...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              continue;
+            }
+            
+            throw new Error(`AI API failed: ${response.status} - ${errorText}`);
           }
-        ],
-        modalities: ["image", "text"]
-      })
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Nano Banana error:", response.status, errorText);
-      console.error("Template size:", templateSize.toFixed(2), "MB");
-      console.error("Logo size:", logoSize.toFixed(2), "MB");
+          const data = await response.json();
+          console.log("✓ Nano Banana response received successfully");
+
+          // Extract the edited image
+          const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+          
+          if (!editedImageUrl) {
+            console.log("No image in response");
+            const textContent = data.choices?.[0]?.message?.content;
+            console.log("Response content:", textContent || "no content");
+            throw new Error("No image generated by AI");
+          }
+
+          onProgress?.("Mockup wird hochgeladen...");
+          console.log("✓ Image edited successfully, uploading to storage...");
+
+          // Upload the base64 image to Supabase Storage
+          const timestamp = Date.now();
+          const filename = `mockup-${mockupType}-${timestamp}.png`;
+          const uploadedUrl = await uploadBase64Image(editedImageUrl, filename);
+          
+          const totalDuration = Date.now() - startTime;
+          console.log(`✓ Mockup uploaded successfully in ${totalDuration}ms:`, uploadedUrl);
+          return uploadedUrl;
+          
+        } catch (error) {
+          lastError = error as Error;
+          if (attempt === maxRetries) {
+            throw error;
+          }
+          console.log(`Attempt ${attempt} failed, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
       
-      // Log the error but return template as fallback
-      console.log("⚠️ AI processing failed, using template as fallback");
-      onProgress?.("⚠️ KI-Verarbeitung fehlgeschlagen, Template wird verwendet");
-      return templateUrl;
+      throw lastError || new Error("All retry attempts failed");
+      
+    } catch (fetchError) {
+      clearTimeout(templateTimeout);
+      throw fetchError;
     }
 
-    const data = await response.json();
-    console.log("Nano Banana response received");
-
-    // Extract the edited image
-    const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
-    if (!editedImageUrl) {
-      console.log("No image in response, checking for text...");
-      const textContent = data.choices?.[0]?.message?.content;
-      console.log("Response content:", textContent ? "text response" : "no content");
-      
-      // Use template as fallback
-      onProgress?.("⚠️ Keine Bildantwort erhalten, Template wird verwendet");
-      return templateUrl;
-    }
-
-    onProgress?.("Mockup wird hochgeladen...");
-    console.log("Image edited successfully, uploading to storage...");
-
-    // Upload the base64 image to Supabase Storage
-    const timestamp = Date.now();
-    const filename = `mockup-${mockupType}-${timestamp}.png`;
-    const uploadedUrl = await uploadBase64Image(editedImageUrl, filename);
-    
-    console.log("Mockup uploaded successfully:", uploadedUrl);
-    return uploadedUrl;
   } catch (error) {
-    console.error("Error in editMockupWithLogo:", error);
-    console.log("Returning template URL as fallback");
-    onProgress?.("⚠️ Fehler bei der Verarbeitung, Template wird verwendet");
-    // Return template URL as fallback instead of throwing
+    const totalDuration = Date.now() - startTime;
+    console.error(`❌ Error in editMockupWithLogo after ${totalDuration}ms:`, error);
+    console.error("Error details:", error instanceof Error ? error.message : String(error));
+    
+    onProgress?.("⚠️ Mockup-Generierung fehlgeschlagen - Template als Vorschau");
+    
+    // Upload template as "preview" fallback
+    try {
+      console.log("Uploading template as preview fallback...");
+      const timestamp = Date.now();
+      const filename = `mockup-${mockupType}-preview-${timestamp}.jpg`;
+      
+      // Fetch template again and upload as preview
+      const templateResponse = await fetch(templateUrl);
+      if (templateResponse.ok) {
+        const templateBlob = await templateResponse.blob();
+        const templateBase64 = await blobToBase64(templateBlob);
+        const previewUrl = await uploadBase64Image(templateBase64, filename);
+        console.log("✓ Template uploaded as preview:", previewUrl);
+        return previewUrl;
+      }
+    } catch (uploadError) {
+      console.error("Failed to upload preview:", uploadError);
+    }
+    
+    // Last resort: return original template URL
+    console.log("Returning original template URL as last resort");
     return templateUrl;
   }
 }

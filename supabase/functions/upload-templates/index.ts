@@ -69,7 +69,7 @@ serve(async (req) => {
 
         results[filename] = publicUrl;
         
-        // Create optimized version
+        // Create AGGRESSIVELY optimized version for AI processing
         console.log(`Creating optimized version of ${filename}...`);
         
         try {
@@ -77,15 +77,25 @@ serve(async (req) => {
           const image = await Image.decode(new Uint8Array(arrayBuffer));
           console.log(`Original dimensions: ${image.width}x${image.height}`);
           
-          // Calculate new dimensions (max width 1024px, maintain aspect ratio)
-          const maxWidth = 1024;
+          // AGGRESSIVE compression: max 800x600px for AI processing
+          const maxWidth = 800;
+          const maxHeight = 600;
           let newWidth = image.width;
           let newHeight = image.height;
           
-          if (image.width > maxWidth) {
-            const ratio = maxWidth / image.width;
-            newWidth = maxWidth;
-            newHeight = Math.round(image.height * ratio);
+          // Calculate aspect ratio
+          const aspectRatio = image.width / image.height;
+          
+          if (image.width > maxWidth || image.height > maxHeight) {
+            if (aspectRatio > maxWidth / maxHeight) {
+              // Width is limiting factor
+              newWidth = maxWidth;
+              newHeight = Math.round(maxWidth / aspectRatio);
+            } else {
+              // Height is limiting factor
+              newHeight = maxHeight;
+              newWidth = Math.round(maxHeight * aspectRatio);
+            }
           }
           
           console.log(`Resizing to: ${newWidth}x${newHeight}`);
@@ -93,19 +103,20 @@ serve(async (req) => {
           // Resize image
           const resized = image.resize(newWidth, newHeight);
           
-          // Encode to PNG with compression
-          const optimizedBuffer = await resized.encode(0); // 0 = PNG with compression
-          const optimizedSize = (optimizedBuffer.byteLength / (1024 * 1024)).toFixed(2);
-          console.log(`Optimized size: ${optimizedSize} MB (${((1 - optimizedBuffer.byteLength / arrayBuffer.byteLength) * 100).toFixed(1)}% smaller)`);
+          // Encode to JPEG with 85% quality for smaller file size
+          const optimizedBuffer = await resized.encodeJPEG(85);
+          const optimizedSizeKB = (optimizedBuffer.byteLength / 1024).toFixed(1);
+          const optimizedSizeMB = (optimizedBuffer.byteLength / (1024 * 1024)).toFixed(2);
+          console.log(`Optimized size: ${optimizedSizeKB} KB (${optimizedSizeMB} MB) - ${((1 - optimizedBuffer.byteLength / arrayBuffer.byteLength) * 100).toFixed(1)}% smaller`);
           
-          // Upload optimized version
-          const optimizedFilename = filename.replace('.png', '-optimized.png');
+          // Upload optimized version as JPEG
+          const optimizedFilename = filename.replace('.png', '-optimized.jpg');
           console.log(`Uploading optimized ${optimizedFilename}...`);
           
           const { error: optimizedUploadError } = await supabase.storage
             .from("mockup-templates")
             .upload(optimizedFilename, optimizedBuffer, {
-              contentType: "image/png",
+              contentType: "image/jpeg",
               upsert: true,
             });
 
@@ -117,7 +128,7 @@ serve(async (req) => {
               .getPublicUrl(optimizedFilename);
             
             results[optimizedFilename] = optimizedUrl;
-            console.log(`✓ Optimized ${optimizedFilename} uploaded: ${optimizedUrl}`);
+            console.log(`✓ Optimized ${optimizedFilename} uploaded: ${optimizedUrl} (${optimizedSizeKB} KB)`);
           }
         } catch (optimizeError) {
           console.warn(`Failed to optimize ${filename}:`, optimizeError);
