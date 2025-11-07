@@ -18,20 +18,20 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    console.log('Generating mockups for project:', projectData.company_name);
+    console.log('Generating mockups for project:', projectData.company_name || projectData.companyName);
 
     const mockups = [];
 
     // Generate mockups based on enabled media
-    if (projectData.vehicle_enabled) {
+    if (projectData.vehicle_enabled || projectData.vehicleEnabled) {
       const vehiclePrompt = `Erstelle ein realistisches Mockup einer Fahrzeugbeschriftung für ein ${projectData.trade}-Unternehmen.
 
-Unternehmensname: ${projectData.company_name}
-Slogan: ${projectData.slogan_selected}
-Markenfarben: ${projectData.primary_color}, ${projectData.secondary_color}, ${projectData.accent_color}
-Kreativitäts-Level: ${projectData.creativity_level}/3
+Unternehmensname: ${projectData.company_name || projectData.companyName}
+Slogan: ${projectData.slogan_selected || projectData.selectedSlogan}
+Markenfarben: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}, ${projectData.accent_color || projectData.accentColor}
+Kreativitäts-Level: ${projectData.creativity_level || projectData.creativityLevel}/3
 
-Das Design soll ${projectData.creativity_level === 3 ? 'kreativ und modern' : projectData.creativity_level === 2 ? 'modern und dynamisch' : 'konservativ und seriös'} sein.
+Das Design soll ${(projectData.creativity_level || projectData.creativityLevel) === 3 ? 'kreativ und modern' : (projectData.creativity_level || projectData.creativityLevel) === 2 ? 'modern und dynamisch' : 'konservativ und seriös'} sein.
 
 Zeige das Logo, den Firmennamen, Slogan und Kontaktinformationen auf einem weißen Transporter.`;
 
@@ -43,13 +43,13 @@ Zeige das Logo, den Firmennamen, Slogan und Kontaktinformationen auf einem weiß
       });
     }
 
-    if (projectData.scaffold_enabled) {
+    if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
       const scaffoldPrompt = `Erstelle ein realistisches Mockup einer Gerüstplane für ein ${projectData.trade}-Unternehmen.
 
-Unternehmensname: ${projectData.company_name}
-Slogan: ${projectData.slogan_selected}
-Markenfarben: ${projectData.primary_color}, ${projectData.secondary_color}, ${projectData.accent_color}
-Größe: ${projectData.scaffold_size || '250 x 205 cm'}
+Unternehmensname: ${projectData.company_name || projectData.companyName}
+Slogan: ${projectData.slogan_selected || projectData.selectedSlogan}
+Markenfarben: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}, ${projectData.accent_color || projectData.accentColor}
+Größe: ${projectData.scaffold_size || projectData.scaffoldSize || '250 x 205 cm'}
 
 Das Design soll großflächig und aus der Ferne gut sichtbar sein. Zeige die Gerüstplane an einer Baustelle.`;
 
@@ -61,13 +61,13 @@ Das Design soll großflächig und aus der Ferne gut sichtbar sein. Zeige die Ger
       });
     }
 
-    if (projectData.fence_enabled) {
+    if (projectData.fence_enabled || projectData.fenceEnabled) {
       const fencePrompt = `Erstelle ein realistisches Mockup eines Bauzaunbanners für ein ${projectData.trade}-Unternehmen.
 
-Unternehmensname: ${projectData.company_name}
-Slogan: ${projectData.slogan_selected}
-Markenfarben: ${projectData.primary_color}, ${projectData.secondary_color}, ${projectData.accent_color}
-Anzahl Felder: ${projectData.fence_fields || 3}
+Unternehmensname: ${projectData.company_name || projectData.companyName}
+Slogan: ${projectData.slogan_selected || projectData.selectedSlogan}
+Markenfarben: ${projectData.primary_color || projectData.primaryColor}, ${projectData.secondary_color || projectData.secondaryColor}, ${projectData.accent_color || projectData.accentColor}
+Anzahl Felder: ${projectData.fence_fields || projectData.fenceFields || 3}
 
 Das Design soll auf einem Bauzaun an einer Straße zu sehen sein.`;
 
