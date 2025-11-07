@@ -1,632 +1,440 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { projectData } = await req.json();
-    const LANGDOCK_API_KEY = Deno.env.get('LANGDOCK_API_KEY');
-    const LANGDOCK_ASSISTANT_ID = Deno.env.get('LANGDOCK_ASSISTANT_ID_MOCKUPS');
+    console.log("Generating mockups with project data:", projectData);
 
-    if (!LANGDOCK_API_KEY) {
-      throw new Error('LANGDOCK_API_KEY not configured');
-    }
+    const mockups: Array<{ type: string; url: string; title: string }> = [];
 
-    if (!LANGDOCK_ASSISTANT_ID) {
-      throw new Error('LANGDOCK_ASSISTANT_ID_MOCKUPS not configured');
-    }
-
-    console.log('Generating mockups for project:', projectData.company_name || projectData.companyName);
-
-    const mockups = [];
-    const logoUrl = projectData.logo_url || projectData.logoUrl;
-
-    // Generate mockups based on enabled media
+    // Generate vehicle mockup if enabled
     if (projectData.vehicle_enabled || projectData.vehicleEnabled) {
-      const contactInfo = [];
-      if (projectData.phone) contactInfo.push(`Phone: ${projectData.phone}`);
-      if (projectData.website) contactInfo.push(`Website: ${projectData.website}`);
-      if (projectData.address) contactInfo.push(`Address: ${projectData.address}`);
-
-      // STEP 1: Generate clean base mockup with Langdock FLUX
-      const vehiclePrompt = `Create a highly realistic photographic mockup of a white commercial van (Mercedes Sprinter style).
-
-Requirements:
-- Professional side view showing the entire van
-- White, clean vehicle surface
-- Realistic lighting and shadows
-- Construction or urban work environment background
-- Large, smooth side panel area perfect for branding
-- High resolution, photorealistic quality
-- No text, logos, or graphics on the van - completely clean white surface
-
-CRITICAL: This must be a clean, realistic photograph of a white commercial van with a blank side panel, ready for branding to be added later.`;
-
-      console.log('STEP 1: Generating clean base vehicle mockup with FLUX...');
-      const baseVehicleUrl = await generateImageWithLangdock(vehiclePrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID);
+      console.log("Generating vehicle mockup...");
+      const templateUrl = selectVehicleTemplate(projectData, req);
+      console.log("Selected vehicle template:", templateUrl);
       
-      // STEP 2: Add logo and text with Lovable AI
-      console.log('STEP 2: Adding logo and branding with Lovable AI...');
-      const vehicleResponse = await editMockupWithLogo(
-        baseVehicleUrl,
-        logoUrl,
+      const vehicleMockupUrl = await editMockupWithLogo(
+        templateUrl,
+        projectData.logo_url || projectData.logoUrl,
         {
           companyName: projectData.company_name || projectData.companyName,
           slogan: projectData.slogan_selected || projectData.selectedSlogan,
-          contact: contactInfo.join(' | '),
+          phone: projectData.phone,
+          email: projectData.email,
+          website: projectData.website,
           primaryColor: projectData.primary_color || projectData.primaryColor,
           secondaryColor: projectData.secondary_color || projectData.secondaryColor,
-          creativityLevel: projectData.creativity_level || projectData.creativityLevel
-        }
+          style: projectData.style || "modern",
+        },
+        "vehicle"
       );
+      
       mockups.push({
-        type: 'vehicle',
-        url: vehicleResponse,
-        title: 'Fahrzeugbeschriftung',
+        type: "vehicle",
+        url: vehicleMockupUrl,
+        title: `${projectData.vehicle_brand || projectData.vehicleBrand} ${projectData.vehicle_body || projectData.vehicleBody || "Transporter"}`,
       });
     }
 
+    // Generate scaffold mockup if enabled
     if (projectData.scaffold_enabled || projectData.scaffoldEnabled) {
-      const contactInfo = [];
-      if (projectData.phone) contactInfo.push(projectData.phone);
-      if (projectData.website) contactInfo.push(projectData.website);
-
-      // STEP 1: Generate clean base scaffolding mockup
-      const scaffoldPrompt = `Create a highly realistic photographic mockup of construction scaffolding with a large blank banner/mesh.
-
-Requirements:
-- Professional construction site with scaffolding on building facade
-- Large white/neutral colored banner covering significant portion of scaffolding
-- Banner should be clean, smooth, and ready for graphics
-- Realistic lighting and urban construction environment
-- Street-level perspective showing entire banner clearly
-- High resolution, photorealistic quality
-- No text, logos, or graphics on the banner - completely blank surface
-
-CRITICAL: This must be a realistic photograph of construction scaffolding with a blank banner, ready for branding to be added later.`;
-
-      console.log('STEP 1: Generating clean base scaffold mockup with FLUX...');
-      const baseScaffoldUrl = await generateImageWithLangdock(scaffoldPrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID);
+      console.log("Generating scaffold mockup...");
+      const templateUrl = `${getOriginUrl(req)}/mockup-templates/scaffold-banner.png`;
+      console.log("Selected scaffold template:", templateUrl);
       
-      // STEP 2: Add logo and text with Lovable AI
-      console.log('STEP 2: Adding logo and branding to scaffold with Lovable AI...');
-      const scaffoldResponse = await editMockupWithLogo(
-        baseScaffoldUrl,
-        logoUrl,
+      const scaffoldMockupUrl = await editMockupWithLogo(
+        templateUrl,
+        projectData.logo_url || projectData.logoUrl,
         {
           companyName: projectData.company_name || projectData.companyName,
           slogan: projectData.slogan_selected || projectData.selectedSlogan,
-          contact: contactInfo.join(', '),
+          phone: projectData.phone,
+          email: projectData.email,
+          website: projectData.website,
           primaryColor: projectData.primary_color || projectData.primaryColor,
           secondaryColor: projectData.secondary_color || projectData.secondaryColor,
-          creativityLevel: projectData.creativity_level || projectData.creativityLevel
-        }
+          style: projectData.style || "modern",
+        },
+        "scaffold"
       );
+      
       mockups.push({
-        type: 'scaffold',
-        url: scaffoldResponse,
-        title: 'Gerüstplane',
+        type: "scaffold",
+        url: scaffoldMockupUrl,
+        title: "Gerüstplane",
       });
     }
 
+    // Generate fence mockup if enabled
     if (projectData.fence_enabled || projectData.fenceEnabled) {
-      const contactInfo = [];
-      if (projectData.phone) contactInfo.push(projectData.phone);
-      if (projectData.website) contactInfo.push(projectData.website);
-
-      // STEP 1: Generate clean base fence mockup
-      const fencePrompt = `Create a highly realistic photographic mockup of construction site fence with blank banners.
-
-Requirements:
-- Multiple connected banner panels (${projectData.fence_fields || projectData.fenceFields || 3} panels) on orange/yellow construction fence
-- Banners should be white/neutral and completely blank
-- Professional construction site environment
-- Realistic lighting and urban setting
-- Banners stretched taut across fence panels
-- High resolution, photorealistic quality
-- No text, logos, or graphics on the banners - completely clean surface
-
-CRITICAL: This must be a realistic photograph of construction site fence with blank banners, ready for branding to be added later.`;
-
-      console.log('STEP 1: Generating clean base fence mockup with FLUX...');
-      const baseFenceUrl = await generateImageWithLangdock(fencePrompt, LANGDOCK_API_KEY, LANGDOCK_ASSISTANT_ID);
+      console.log("Generating fence mockup...");
+      const templateUrl = `${getOriginUrl(req)}/mockup-templates/fence-banner.png`;
+      console.log("Selected fence template:", templateUrl);
       
-      // STEP 2: Add logo and text with Lovable AI
-      console.log('STEP 2: Adding logo and branding to fence with Lovable AI...');
-      const fenceResponse = await editMockupWithLogo(
-        baseFenceUrl,
-        logoUrl,
+      const fenceMockupUrl = await editMockupWithLogo(
+        templateUrl,
+        projectData.logo_url || projectData.logoUrl,
         {
           companyName: projectData.company_name || projectData.companyName,
           slogan: projectData.slogan_selected || projectData.selectedSlogan,
-          contact: contactInfo.join(', '),
+          phone: projectData.phone,
+          email: projectData.email,
+          website: projectData.website,
           primaryColor: projectData.primary_color || projectData.primaryColor,
           secondaryColor: projectData.secondary_color || projectData.secondaryColor,
-          creativityLevel: projectData.creativity_level || projectData.creativityLevel
-        }
+          style: projectData.style || "modern",
+        },
+        "fence"
       );
+      
       mockups.push({
-        type: 'fence',
-        url: fenceResponse,
-        title: 'Bauzaunbanner',
+        type: "fence",
+        url: fenceMockupUrl,
+        title: "Bauzaunbanner",
       });
     }
 
-    console.log('Generated mockups:', mockups.length);
+    console.log(`Generated ${mockups.length} mockups successfully`);
 
     return new Response(JSON.stringify({ mockups }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error('Error in generate-mockups:', error);
+    console.error("Error in generate-mockups function:", error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });
 
-// STEP 2: Edit mockup with logo and text using Lovable AI
+function getOriginUrl(req: Request): string {
+  const url = new URL(req.url);
+  return `${url.protocol}//${url.host}`;
+}
+
+function selectVehicleTemplate(projectData: any, req: Request): string {
+  const brand = (projectData.vehicle_brand || projectData.vehicleBrand)?.toLowerCase();
+  const body = (projectData.vehicle_body || projectData.vehicleBody)?.toLowerCase();
+  
+  const baseUrl = getOriginUrl(req);
+  
+  if (brand === "ford") {
+    return `${baseUrl}/mockup-templates/ford-transporter.png`;
+  }
+  if (brand === "vw" || brand === "volkswagen") {
+    return `${baseUrl}/mockup-templates/vw-transporter.png`;
+  }
+  if (brand === "mercedes") {
+    if (body === "sprinter") {
+      return `${baseUrl}/mockup-templates/mercedes-sprinter.png`;
+    }
+    return `${baseUrl}/mockup-templates/mercedes-transporter.png`;
+  }
+  
+  // Fallback to Mercedes Transporter
+  return `${baseUrl}/mockup-templates/mercedes-transporter.png`;
+}
+
 async function editMockupWithLogo(
-  baseMockupUrl: string,
-  logoUrl: string | undefined,
+  templateUrl: string,
+  logoUrl: string,
   brandData: {
     companyName: string;
     slogan: string;
-    contact: string;
+    phone?: string;
+    email?: string;
+    website?: string;
     primaryColor: string;
     secondaryColor: string;
-    creativityLevel?: number;
-  }
+    style: string;
+  },
+  mockupType: "vehicle" | "scaffold" | "fence"
 ): Promise<string> {
+  console.log("Starting mockup editing with Nano Banana...");
+  console.log("Template URL:", templateUrl);
+  console.log("Logo URL:", logoUrl);
+  console.log("Mockup type:", mockupType);
+
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    throw new Error("LOVABLE_API_KEY not configured");
+  }
+
+  const styleDescription = getStyleDescription(brandData.style);
+  
+  // Build contact info string
+  const contactParts = [];
+  if (brandData.phone) contactParts.push(brandData.phone);
+  if (brandData.email) contactParts.push(brandData.email);
+  if (brandData.website) contactParts.push(brandData.website);
+  const contactInfo = contactParts.join(" | ");
+  
+  // Create type-specific prompts
+  let editPrompt = "";
+  
+  if (mockupType === "vehicle") {
+    editPrompt = `CRITICAL TEMPLATE EDITING INSTRUCTIONS:
+This is a PRE-EXISTING professional vehicle photo template. You are ONLY adding branding to the white side panel.
+
+🚫 DO NOT:
+- Regenerate, alter, or modify the vehicle itself in any way
+- Change background, lighting, camera angle, or perspective
+- Modify vehicle body, wheels, windows, mirrors, or any structural elements
+- Add any AI-generated vehicle components
+- Change the photographic quality or realism of the template
+
+✅ ONLY DO:
+- Add logo and text ON the existing white side panel area
+- Respect existing panel seams and door gaps - split decals at panel boundaries
+- Follow baseline PARALLEL to sliding-door track/seam
+- Maintain the template's photorealistic quality and lighting
+
+BRANDING INTEGRATION:
+Logo: "${logoUrl}"
+- Place logo prominently on the side panel
+- Maintain original logo quality and clarity (ultra-sharp)
+- Size: Large enough to be visible from 10+ meters distance
+- Position: Upper-left or center-left of side panel
+- DO NOT distort or stretch the logo
+
+Company Name: "${brandData.companyName}"
+- Font: Bold, sans-serif, ultra-professional
+- Size: LARGE - make it the PRIMARY visual element
+- Color: Use DARKER NAVY shade of ${brandData.primaryColor} for maximum contrast
+- Add thin white outline (1-2mm) around text for enhanced readability
+- Baseline: MUST BE PARALLEL to the sliding-door track; check alignment against door seam
+- Make LARGER if current size appears too small - prioritize readability
+
+Slogan: "${brandData.slogan}"
+- Font: Medium weight, clean sans-serif
+- Size: 60-70% of company name size
+- Color: ${brandData.secondaryColor || brandData.primaryColor}
+- Position: Below company name with adequate spacing
+- Baseline: Parallel to company name baseline
+
+Contact Information: "${contactInfo}"
+- Font: Regular weight, highly legible sans-serif
+- Size: INCREASE font sizes if elements appear too small or cramped
+- Use clear separators "|" with adequate spacing - DO NOT make text too dense
+- Color: Dark gray or ${brandData.primaryColor}
+- Position: Bottom footer area or lower-right corner
+- Alignment: ALL baselines parallel to sliding-door track and door seams
+
+SEAM & PANEL HANDLING:
+- Respect seams; split decals at panel gaps
+- Avoid spanning text/logo over deep recesses or door handles
+- If text crosses a seam, create natural break points
+
+SURFACE APPEARANCE:
+- Matte laminate appearance, polarizing filter look
+- NO specular highlights on glyphs/letters
+- Subtle vinyl texture with micro-dots visible on close inspection
+- Natural reflections matching vehicle's environment
+
+LAYOUT & HIERARCHY:
+Design Style: ${styleDescription}
+- Professional, clean, high-impact design
+- Strategic use of colors: Primary ${brandData.primaryColor}, Secondary ${brandData.secondaryColor}
+- Balanced composition with clear visual hierarchy
+- Premium, $5000+ professional vehicle wrap appearance
+
+QUALITY ASSURANCE CHECKLIST:
+✓ Text Rendering: Every letter razor-sharp, perfectly legible, adequate size
+✓ Logo Quality: Crystal clear, maintains original resolution and colors
+✓ Color Accuracy: Exact match to brand colors (use darker navy variants for contrast)
+✓ Baseline Alignment: All text parallel to vehicle's horizontal lines and seams
+✓ Seam Respect: Decals split appropriately at panel gaps
+✓ Professional Finish: Looks like a $5000+ professional vinyl wrap job
+✓ Realism: Natural reflections, shadows, matte laminate finish
+✓ Template Integrity: Original vehicle photo UNCHANGED, only branding added
+
+OUTPUT: ULTRA HIGH RESOLUTION image with razor-sharp text and perfect logo integration.`;
+  } else {
+    // Scaffold or Fence banner
+    editPrompt = `CRITICAL TEMPLATE EDITING INSTRUCTIONS:
+This is a PRE-EXISTING professional ${mockupType} banner mockup. You are ONLY adding branding to the white banner surface.
+
+🚫 DO NOT:
+- Regenerate or alter the ${mockupType === "scaffold" ? "scaffolding structure" : "fence structure"}
+- Change background, lighting, or perspective
+- Modify banner material, wrinkles, folds, or mounting hardware
+- Add any AI-generated structural elements
+- Change the photographic quality or realism
+
+✅ ONLY DO:
+- Place logo and text ON the existing white banner surface
+- Center design on the banner area
+- Respect natural wrinkles and folds of the material
+- Maintain the template's realistic appearance and lighting
+
+BRANDING INTEGRATION:
+Logo: "${logoUrl}"
+- Center logo at top or center of banner
+- Maintain original logo quality (ultra-sharp)
+- Size: Large and prominent for visibility from distance
+- DO NOT distort or stretch
+
+Company Name: "${brandData.companyName}"
+- Font: Bold, sans-serif, ultra-professional
+- Size: VERY LARGE - primary focal point
+- Color: Use DARKER NAVY shade of ${brandData.primaryColor} for contrast
+- Add thin white outline (1-2mm) for enhanced visibility
+- Position: Below logo or centered
+
+Slogan: "${brandData.slogan}"
+- Font: Medium weight, clean sans-serif
+- Size: 60-70% of company name
+- Color: ${brandData.secondaryColor || brandData.primaryColor}
+- Position: Below company name
+
+Contact Information: "${contactInfo}"
+- Font: Regular, highly legible
+- Size: Adequate for readability from distance
+- Use separators "|" with proper spacing
+- Color: Dark gray or ${brandData.primaryColor}
+- Position: Bottom of banner
+
+LAYOUT:
+Design Style: ${styleDescription}
+- Centered, balanced composition
+- Clean hierarchy: Logo → Company Name → Slogan → Contact
+- Strategic use of colors: Primary ${brandData.primaryColor}, Secondary ${brandData.secondaryColor}
+- Professional, high-impact advertising banner
+
+MATERIAL APPEARANCE:
+- Banner mesh or vinyl material texture
+- Natural folds and wrinkles preserved
+- Matte finish, no excessive glare
+- Realistic outdoor banner appearance
+
+QUALITY ASSURANCE:
+✓ Text: Razor-sharp, perfectly readable
+✓ Logo: Crystal clear, original quality
+✓ Colors: Exact brand color match (darker variants for contrast)
+✓ Layout: Centered, professional, balanced
+✓ Realism: Looks like professional printed banner
+✓ Template Integrity: Original ${mockupType} structure UNCHANGED
+
+OUTPUT: ULTRA HIGH RESOLUTION banner mockup with perfect branding integration.`;
+  }
+
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    console.log('Editing mockup with Lovable AI. Base mockup:', baseMockupUrl);
-    
-    // Build optimized editing prompt for maximum quality
-    const styleDescription = brandData.creativityLevel === 3 
-      ? 'modern, creative, and dynamic style' 
-      : brandData.creativityLevel === 2 
-      ? 'contemporary and professional style' 
-      : 'traditional and conservative style';
-    
-    const editPrompt = logoUrl 
-      ? `PROFESSIONAL VEHICLE/CONSTRUCTION BRANDING - HIGH QUALITY MOCKUP EDITING
-
-**CRITICAL QUALITY REQUIREMENTS:**
-- Output must be ULTRA HIGH RESOLUTION with razor-sharp clarity
-- ALL text must be CRYSTAL CLEAR, perfectly sharp, and 100% readable
-- Logo must maintain perfect quality and clarity
-- Colors must be vibrant, accurate, and professionally rendered
-- Final result must look like premium professional vinyl graphics/wrapping
-- MATTE LAMINATE finish: polarizing filter look, NO specular highlights on glyphs/letters
-- Respect vehicle seams: split decals at panel gaps; avoid spanning over deep recesses
-
-**STEP-BY-STEP BRANDING INSTRUCTIONS:**
-
-1. LOGO INTEGRATION:
-   - Fetch the company logo from: ${logoUrl}
-   - Maintain ORIGINAL logo quality - no degradation or blur
-   - Place logo prominently on the vehicle/surface (upper left or center area)
-   - Size: Logo should be clearly visible but proportional (15-20% of branding area)
-   - Ensure logo has perfect clarity and sharp edges
-   - CRITICAL: Respect panel seams - split logo across gaps if necessary
-
-2. COMPANY NAME:
-   - Text: "${brandData.companyName}"
-   - Font: BOLD, EXTRA LARGE, ultra-professional sans-serif typeface
-   - Color: Use DARKER NAVY shade of ${brandData.primaryColor} for better contrast
-   - Add thin white outline (1-2mm) for enhanced readability
-   - Position: Next to or below logo as main focal point
-   - Size: 2-3x larger than slogan - this is the PRIMARY element
-   - Quality: Text must be RAZOR SHARP with perfect anti-aliasing
-   - Baseline: MUST BE PARALLEL to the sliding-door track; check alignment against door seam
-
-3. SLOGAN:
-   - Text: "${brandData.slogan}"
-   - Font: Professional complementary font, medium weight
-   - Color: ${brandData.secondaryColor} or subtle variant of primary
-   - Position: Directly below company name with proper spacing
-   - Size: Medium - clearly readable from distance (increase if too small)
-   - Quality: SHARP and perfectly legible
-   - Baseline: MUST BE PARALLEL to vehicle panel lines
-
-4. CONTACT INFORMATION:
-   - Text: ${brandData.contact}
-   - Font: Clean, professional, highly readable
-   - Color: ${brandData.primaryColor} or contrasting color for visibility
-   - Position: Lower area or bottom right of branding space
-   - Size: Make LARGER if current size appears too small - prioritize readability
-   - Content: Use clear separators "|" with adequate spacing - DO NOT make text too dense
-   - Quality: Sharp and clear
-   - Baseline: PARALLEL to vehicle structure
-
-5. DESIGN STYLE:
-   - Overall aesthetic: ${styleDescription}
-   - Layout: Professional, balanced, with proper white space
-   - Hierarchy: Logo + Company Name (primary) → Slogan (secondary) → Contact (tertiary)
-   - Colors: Use darker navy version of ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
-   - Integration: Make branding look like real vinyl wrap/decals with subtle shadows and reflections matching the vehicle surface
-   - Surface finish: MATTE laminate appearance - no glossy highlights on text
-
-6. QUALITY ASSURANCE:
-   - Text rendering: ULTRA SHARP - no blur, no pixelation, MATTE finish
-   - Logo quality: PRISTINE - maintain original resolution and clarity
-   - Color accuracy: EXACT match to specified hex colors (use darker navy variants)
-   - Contrast: Ensure sufficient contrast with 1-2mm white outline on dark text
-   - Professional finish: Must look like $5000+ professional vehicle wrap job
-   - Realism: Subtle reflections, proper shadows, vinyl texture with MATTE laminate look
-   - Seam respect: Split graphics at panel gaps, avoid deep recesses
-   - Alignment: ALL baselines parallel to sliding-door track and door seams
-   - Gloss control: NO specular highlights on letters/glyphs - matte finish only
-   - Scale: Increase font sizes if elements appear too small or cramped
-
-FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, professionally executed with matte finish and proper seam handling.`
-      : `PROFESSIONAL VEHICLE/CONSTRUCTION BRANDING - HIGH QUALITY MOCKUP EDITING
-
-**CRITICAL QUALITY REQUIREMENTS:**
-- Output must be ULTRA HIGH RESOLUTION with razor-sharp clarity
-- ALL text must be CRYSTAL CLEAR, perfectly sharp, and 100% readable
-- Colors must be vibrant, accurate, and professionally rendered
-- Final result must look like premium professional vinyl graphics/wrapping
-- MATTE LAMINATE finish: polarizing filter look, NO specular highlights on glyphs/letters
-- Respect vehicle seams: split decals at panel gaps; avoid spanning over deep recesses
-
-**STEP-BY-STEP BRANDING INSTRUCTIONS:**
-
-1. LOGO CREATION:
-   - Create a simple, professional logo icon/symbol representing construction/trades
-   - Style: Clean, modern, and memorable
-   - Color: Use darker navy shade of ${brandData.primaryColor}
-   - Position: Upper left or center area of branding space
-   - Size: Prominent but proportional (15-20% of branding area)
-   - Quality: SHARP vector-style clarity
-   - CRITICAL: Respect panel seams - split logo across gaps if necessary
-
-2. COMPANY NAME:
-   - Text: "${brandData.companyName}"
-   - Font: BOLD, EXTRA LARGE, ultra-professional sans-serif typeface
-   - Color: Use DARKER NAVY shade of ${brandData.primaryColor} for better contrast
-   - Add thin white outline (1-2mm) for enhanced readability
-   - Position: Next to or below logo as main focal point
-   - Size: 2-3x larger than slogan - this is the PRIMARY element
-   - Quality: Text must be RAZOR SHARP with perfect anti-aliasing
-   - Baseline: MUST BE PARALLEL to the sliding-door track; check alignment against door seam
-
-3. SLOGAN:
-   - Text: "${brandData.slogan}"
-   - Font: Professional complementary font, medium weight
-   - Color: ${brandData.secondaryColor} or subtle variant of primary
-   - Position: Directly below company name with proper spacing
-   - Size: Medium - clearly readable from distance (increase if too small)
-   - Quality: SHARP and perfectly legible
-   - Baseline: MUST BE PARALLEL to vehicle panel lines
-
-4. CONTACT INFORMATION:
-   - Text: ${brandData.contact}
-   - Font: Clean, professional, highly readable
-   - Color: ${brandData.primaryColor} or contrasting color for visibility
-   - Position: Lower area or bottom right of branding space
-   - Size: Make LARGER if current size appears too small - prioritize readability
-   - Content: Use clear separators "|" with adequate spacing - DO NOT make text too dense
-   - Quality: Sharp and clear
-   - Baseline: PARALLEL to vehicle structure
-
-5. DESIGN STYLE:
-   - Overall aesthetic: ${styleDescription}
-   - Layout: Professional, balanced, with proper white space
-   - Hierarchy: Logo + Company Name (primary) → Slogan (secondary) → Contact (tertiary)
-   - Colors: Use darker navy version of ${brandData.primaryColor} and ${brandData.secondaryColor} strategically
-   - Integration: Make branding look like real vinyl wrap/decals with subtle shadows and reflections
-   - Surface finish: MATTE laminate appearance - no glossy highlights on text
-
-6. QUALITY ASSURANCE:
-   - Text rendering: ULTRA SHARP - no blur, no pixelation, MATTE finish
-   - Color accuracy: EXACT match to specified hex colors (use darker navy variants)
-   - Contrast: Ensure sufficient contrast with 1-2mm white outline on dark text
-   - Professional finish: Must look like $5000+ professional vehicle wrap job
-   - Realism: Subtle reflections, proper shadows, vinyl texture with MATTE laminate look
-   - Seam respect: Split graphics at panel gaps, avoid deep recesses
-   - Alignment: ALL baselines parallel to sliding-door track and door seams
-   - Gloss control: NO specular highlights on letters/glyphs - matte finish only
-   - Scale: Increase font sizes if elements appear too small or cramped
-
-FINAL OUTPUT: Ultra high-resolution mockup with professional-grade branding that looks indistinguishable from real commercial vehicle graphics. Every element must be sharp, clear, professionally executed with matte finish and proper seam handling.`;
-
-
-    // Call Lovable AI Gateway with image editing
-    const messages: any[] = [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: editPrompt
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: baseMockupUrl
-            }
-          }
-        ]
-      }
-    ];
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
+    console.log("Calling Lovable AI Gateway for image editing...");
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
-        messages: messages,
-        modalities: ['image', 'text']
+        model: "google/gemini-2.5-flash-image-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: editPrompt,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: templateUrl,
+                },
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: logoUrl,
+                },
+              },
+            ],
+          },
+        ],
+        modalities: ["image", "text"],
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI error:', response.status, errorText);
-      throw new Error(`Lovable AI failed: ${response.status} - ${errorText}`);
+      console.error("Lovable AI Gateway error:", response.status, errorText);
+      throw new Error(`Lovable AI Gateway error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('Lovable AI response received');
+    console.log("Lovable AI response received");
 
-    // Extract the edited image
     const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
     if (!editedImageUrl) {
-      console.error('No edited image in Lovable AI response');
-      throw new Error('No edited image returned from Lovable AI');
+      throw new Error("No edited image URL in response");
     }
 
-    // If it's a base64 data URL, upload to Supabase Storage
-    if (editedImageUrl.startsWith('data:image')) {
-      console.log('Uploading edited image to Supabase Storage...');
-      
-      const base64Data = editedImageUrl.split(',')[1];
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      const fileName = `edited-mockup-${Date.now()}.png`;
-      const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-      const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-      
-      const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/mockups/${fileName}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'image/png',
-          'x-upsert': 'true',
-        },
-        body: bytes,
-      });
-      
-      if (uploadResponse.ok) {
-        const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/mockups/${fileName}`;
-        console.log('Edited image uploaded to Storage:', publicUrl);
-        return publicUrl;
-      } else {
-        const errorText = await uploadResponse.text();
-        console.error('Failed to upload edited image:', uploadResponse.status, errorText);
-        return editedImageUrl; // Fallback to data URL
-      }
+    // If it's a data URL, upload to Supabase Storage
+    if (editedImageUrl.startsWith("data:")) {
+      console.log("Uploading edited image to Supabase Storage...");
+      return await uploadBase64Image(editedImageUrl, `${mockupType}-mockup-${Date.now()}.png`);
     }
 
     return editedImageUrl;
   } catch (error) {
-    console.error('Error editing mockup with Lovable AI:', error);
+    console.error("Error in editMockupWithLogo:", error);
     throw error;
   }
 }
 
-// STEP 1: Generate clean base mockup with Langdock FLUX
-async function generateImageWithLangdock(
-  prompt: string, 
-  apiKey: string, 
-  assistantId: string
-): Promise<string> {
-  try {
-    console.log('Generating clean base mockup with Langdock FLUX');
-    
-    // Call Langdock Assistant API for clean base mockup (no logo needed)
-    const response = await fetch('https://api.langdock.com/assistant/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        assistantId: assistantId,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }],
-        stream: false
-      }),
+async function uploadBase64Image(base64Data: string, filename: string): Promise<string> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Remove data URL prefix
+  const base64String = base64Data.split(",")[1];
+  const imageBuffer = Uint8Array.from(atob(base64String), (c) => c.charCodeAt(0));
+
+  const { data, error } = await supabase.storage
+    .from("mockups")
+    .upload(filename, imageBuffer, {
+      contentType: "image/png",
+      upsert: false,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Langdock API error:', response.status, errorText);
-      throw new Error(`Langdock API failed: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    console.log('Langdock response structure:', JSON.stringify({
-      hasResult: !!data.result,
-      hasOutput: !!data.output,
-      resultLength: data.result?.length,
-      fullResponse: data
-    }, null, 2));
-
-    // Extract image URL or Base64 from response
-    // Check result array for tool results with generated images
-    if (data.result && Array.isArray(data.result)) {
-      for (const item of data.result) {
-        // Check tool results for image generation output
-        if (item.role === 'tool' && Array.isArray(item.content)) {
-          for (const contentItem of item.content) {
-            if (contentItem.toolName === 'image_generation' && contentItem.result) {
-              // Check for images array with base64 or url
-              if (contentItem.result.images && Array.isArray(contentItem.result.images)) {
-                const firstImage = contentItem.result.images[0];
-                
-                // Check for base64 data
-                if (firstImage?.base64) {
-                  console.log('Found base64 image, uploading to Supabase Storage');
-                  const base64Data = firstImage.base64;
-                  
-                  // Convert base64 to binary
-                  const binaryString = atob(base64Data);
-                  const bytes = new Uint8Array(binaryString.length);
-                  for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                  }
-                  
-                  // Upload to Supabase Storage
-                  const fileName = `mockup-${Date.now()}.png`;
-                  const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-                  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-                  
-                  try {
-                    const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/mockups/${fileName}`, {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                        'Content-Type': 'image/png',
-                        'x-upsert': 'true',
-                      },
-                      body: bytes,
-                    });
-                    
-                    if (uploadResponse.ok) {
-                      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/mockups/${fileName}`;
-                      console.log('Image uploaded to Storage:', publicUrl);
-                      return publicUrl;
-                    } else {
-                      const errorText = await uploadResponse.text();
-                      console.error('Failed to upload to Storage:', uploadResponse.status, errorText);
-                      
-                      // Fallback: return as data URL
-                      console.log('Falling back to data URL');
-                      return `data:image/png;base64,${base64Data}`;
-                    }
-                  } catch (uploadError) {
-                    console.error('Upload error:', uploadError);
-                    // Fallback: return as data URL
-                    return `data:image/png;base64,${base64Data}`;
-                  }
-                }
-                
-                // Check for URL (not "N/A")
-                if (firstImage?.url && firstImage.url !== 'N/A') {
-                  console.log('Found image URL in images array');
-                  return firstImage.url;
-                }
-                
-                // Check for string image
-                if (typeof firstImage === 'string' && firstImage !== 'N/A') {
-                  console.log('Found image in images array');
-                  return firstImage;
-                }
-              }
-              
-              // Check for output field with image URL
-              if (contentItem.result.output && contentItem.result.output !== 'N/A') {
-                console.log('Found image in tool result output');
-                return contentItem.result.output;
-              }
-              
-              // Check for imageUrl field
-              if (contentItem.result.imageUrl && contentItem.result.imageUrl !== 'N/A') {
-                console.log('Found imageUrl in tool result');
-                return contentItem.result.imageUrl;
-              }
-              
-              // Check for url field
-              if (contentItem.result.url && contentItem.result.url !== 'N/A') {
-                console.log('Found url in tool result');
-                return contentItem.result.url;
-              }
-              
-              // Log if there was an error
-              if (contentItem.result.error) {
-                console.error('Image generation error:', contentItem.result.error);
-              }
-            }
-          }
-        }
-        
-        // Check for assistant role with string content (direct image URL)
-        if (item.role === 'assistant' && typeof item.content === 'string') {
-          // Check if it's an image URL or base64
-          if (item.content.startsWith('http') || item.content.startsWith('data:image')) {
-            console.log('Found image URL in assistant string content');
-            return item.content;
-          }
-        }
-        
-        // Check for assistant role with array content
-        if (item.role === 'assistant' && Array.isArray(item.content)) {
-          for (const contentItem of item.content) {
-            // Look for image_url type
-            if (contentItem.type === 'image_url' && contentItem.image_url?.url) {
-              console.log('Found image URL in assistant array content');
-              return contentItem.image_url.url;
-            }
-            // Look for image_file type
-            if (contentItem.type === 'image_file' && contentItem.image_file?.url) {
-              console.log('Found image file URL in assistant array content');
-              return contentItem.image_file.url;
-            }
-          }
-        }
-      }
-    }
-
-    // Check output object for image
-    if (data.output) {
-      if (data.output.imageUrl) {
-        console.log('Found image URL in output');
-        return data.output.imageUrl;
-      }
-      if (data.output.url) {
-        console.log('Found URL in output');
-        return data.output.url;
-      }
-      // Check if output is a string with base64 or URL
-      if (typeof data.output === 'string') {
-        if (data.output.startsWith('http') || data.output.startsWith('data:image')) {
-          console.log('Found image in output string');
-          return data.output;
-        }
-      }
-    }
-
-    console.error('No image found in Langdock response. Full response:', JSON.stringify(data, null, 2));
-    throw new Error('No image URL found in assistant response. Please ensure the assistant is configured with image generation capability.');
-
-  } catch (error) {
-    console.error('Langdock generation error:', error);
+  if (error) {
+    console.error("Error uploading to Supabase Storage:", error);
     throw error;
   }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from("mockups")
+    .getPublicUrl(data.path);
+
+  console.log("Uploaded to Supabase Storage:", publicUrl);
+  return publicUrl;
+}
+
+function getStyleDescription(style: string): string {
+  const styleMap: Record<string, string> = {
+    modern: "Modern, clean design with bold typography and minimalist layout",
+    classic: "Classic, timeless design with traditional fonts and balanced composition",
+    bold: "Bold, high-impact design with strong colors and dynamic layout",
+    minimal: "Minimal, understated design with plenty of white space and subtle elements",
+    playful: "Playful, energetic design with creative elements and vibrant colors",
+  };
+  return styleMap[style] || styleMap.modern;
 }
