@@ -21,6 +21,7 @@ serve(async (req) => {
     console.log('Generating mockups for project:', projectData.company_name || projectData.companyName);
 
     const mockups = [];
+    const logoUrl = projectData.logo_url || projectData.logoUrl;
 
     // Generate mockups based on enabled media
     if (projectData.vehicle_enabled || projectData.vehicleEnabled) {
@@ -38,7 +39,7 @@ Brand Colors: ${projectData.primary_color || projectData.primaryColor}, ${projec
 
 Design Requirements:
 - Show the company name in LARGE, bold, professional lettering using the primary brand color (${projectData.primary_color || projectData.primaryColor})
-- Display a prominent company logo symbol/icon on the van's side panel
+- ${logoUrl ? 'Use the EXACT company logo provided in the image above - place it prominently on the van\'s side panel' : 'Display a prominent company logo symbol/icon on the van\'s side panel'}
 - Include the slogan "${projectData.slogan_selected || projectData.selectedSlogan}" below the company name in a complementary font
 - Add contact information in smaller text: ${contactInfo.join(', ')}
 - The design should be ${(projectData.creativity_level || projectData.creativityLevel) === 3 ? 'modern and creative with dynamic elements' : (projectData.creativity_level || projectData.creativityLevel) === 2 ? 'contemporary and professional' : 'traditional and conservative'}
@@ -46,9 +47,9 @@ Design Requirements:
 - Show a realistic white commercial van (Mercedes Sprinter or similar) in a construction site setting
 - The branding should look professionally vinyl-wrapped on the vehicle with visible company logo, name, slogan, and contact details
 
-CRITICAL: This must be a realistic photograph, not an illustration. The van should have clearly visible text with company name, logo symbol, slogan, and contact information.`;
+CRITICAL: This must be a realistic photograph, not an illustration. The van should have clearly visible text with company name, logo, slogan, and contact information.`;
 
-      const vehicleResponse = await generateImage(vehiclePrompt, LOVABLE_API_KEY);
+      const vehicleResponse = await generateImage(vehiclePrompt, LOVABLE_API_KEY, logoUrl);
       mockups.push({
         type: 'vehicle',
         url: vehicleResponse,
@@ -70,7 +71,7 @@ Brand Colors: ${projectData.primary_color || projectData.primaryColor}, ${projec
 
 Design Requirements:
 - Large-scale banner visible from street level covering significant portion of scaffolding
-- Company logo symbol prominently displayed at the top
+- ${logoUrl ? 'Use the EXACT company logo provided in the image above - display it prominently at the top of the banner' : 'Company logo symbol prominently displayed at the top'}
 - Company name "${projectData.company_name || projectData.companyName}" in HUGE, bold, readable lettering using primary color
 - Slogan "${projectData.slogan_selected || projectData.selectedSlogan}" visible and legible from distance
 - Contact information (${contactInfo.join(', ')}) clearly displayed
@@ -80,7 +81,7 @@ Design Requirements:
 
 CRITICAL: This must be a realistic photograph of an actual construction site with the branded banner displaying all text and logo clearly visible.`;
 
-      const scaffoldResponse = await generateImage(scaffoldPrompt, LOVABLE_API_KEY);
+      const scaffoldResponse = await generateImage(scaffoldPrompt, LOVABLE_API_KEY, logoUrl);
       mockups.push({
         type: 'scaffold',
         url: scaffoldResponse,
@@ -103,7 +104,7 @@ Number of panels: ${projectData.fence_fields || projectData.fenceFields || 3}
 
 Design Requirements:
 - Multiple connected banner panels (${projectData.fence_fields || projectData.fenceFields || 3} panels) on construction fencing
-- Company logo symbol clearly visible on the banners
+- ${logoUrl ? 'Use the EXACT company logo provided in the image above - display it clearly on the banners' : 'Company logo symbol clearly visible on the banners'}
 - Company name "${projectData.company_name || projectData.companyName}" in bold lettering using primary color
 - Slogan "${projectData.slogan_selected || projectData.selectedSlogan}" prominently displayed
 - Contact information displayed: ${contactInfo.join(', ')}
@@ -114,7 +115,7 @@ Design Requirements:
 
 CRITICAL: This must be a realistic photograph of actual construction site fence with branded banners clearly showing all text and logo.`;
 
-      const fenceResponse = await generateImage(fencePrompt, LOVABLE_API_KEY);
+      const fenceResponse = await generateImage(fencePrompt, LOVABLE_API_KEY, logoUrl);
       mockups.push({
         type: 'fence',
         url: fenceResponse,
@@ -137,11 +138,32 @@ CRITICAL: This must be a realistic photograph of actual construction site fence 
   }
 });
 
-async function generateImage(prompt: string, apiKey: string): Promise<string> {
+async function generateImage(prompt: string, apiKey: string, logoUrl?: string): Promise<string> {
   // Optimize prompt for image generation
   const imagePrompt = `Generate a realistic mockup image: ${prompt}
 
-IMPORTANT: Generate an actual image, not a description.`;
+IMPORTANT: ${logoUrl ? 'Use the provided company logo image in the mockup. Place it prominently and professionally.' : 'Generate an actual image, not a description.'}`;
+
+  // Build message content - multimodal if logo is provided
+  let messageContent: any;
+  
+  if (logoUrl) {
+    // Fetch logo to get as base64 or use URL directly
+    messageContent = [
+      {
+        type: 'text',
+        text: imagePrompt
+      },
+      {
+        type: 'image_url',
+        image_url: {
+          url: logoUrl
+        }
+      }
+    ];
+  } else {
+    messageContent = imagePrompt;
+  }
 
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -154,7 +176,7 @@ IMPORTANT: Generate an actual image, not a description.`;
       messages: [
         {
           role: 'user',
-          content: imagePrompt
+          content: messageContent
         }
       ],
       modalities: ['image', 'text']
