@@ -395,45 +395,47 @@ Please generate professional construction site branding mockups using the provid
     }
 
     const assistantData = await assistantResponse.json();
-    console.log('Received response from Langdock');
+    console.log('Received response from Langdock:', JSON.stringify(assistantData).substring(0, 500));
 
     // Step 5: Parse the response
     let mockups = [];
     
-    // Try to extract mockups from the response
-    const content = assistantData.choices?.[0]?.message?.content || '';
+    // Langdock Assistant API returns result array
+    const result = assistantData.result || [];
+    console.log('Result array length:', result.length);
     
-    // Try to parse JSON from the content
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*"mockups"[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.mockups && Array.isArray(parsed.mockups)) {
-          mockups = parsed.mockups;
+    // Try to extract mockups from the result
+    for (const item of result) {
+      console.log('Processing result item, role:', item.role);
+      
+      if (item.content) {
+        for (const contentItem of item.content) {
+          console.log('Content item type:', contentItem.type);
+          
+          // Check if it's text content with JSON
+          if (contentItem.type === 'text' && contentItem.text) {
+            try {
+              const jsonMatch = contentItem.text.match(/\{[\s\S]*"mockups"[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (parsed.mockups && Array.isArray(parsed.mockups)) {
+                  mockups = parsed.mockups;
+                  console.log('Found mockups in text content:', mockups.length);
+                  break;
+                }
+              }
+            } catch (parseError) {
+              console.error('Error parsing mockups from text:', parseError);
+            }
+          }
+          
+          // Check if it's image content
+          if (contentItem.type === 'image' && contentItem.image) {
+            const imageUrl = contentItem.image.url || contentItem.image;
+            console.log('Found image:', imageUrl.substring(0, 100));
+          }
         }
       }
-    } catch (parseError) {
-      console.error('Error parsing mockups from response:', parseError);
-    }
-
-    // If no mockups found, check for images in the response
-    if (mockups.length === 0 && assistantData.choices?.[0]?.message?.images) {
-      const images = assistantData.choices[0].message.images;
-      requestedTypes.forEach((type, index) => {
-        if (images[index]) {
-          const titles: Record<string, string> = {
-            vehicle: 'Fahrzeugbeschriftung',
-            scaffold: 'Gerüstplane',
-            fence: 'Bauzaunbanner'
-          };
-          
-          mockups.push({
-            type,
-            url: images[index].image_url?.url || images[index].url,
-            title: titles[type]
-          });
-        }
-      });
     }
 
     console.log('Generated mockups:', mockups.length);
