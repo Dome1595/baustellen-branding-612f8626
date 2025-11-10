@@ -40,14 +40,19 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Parse request body
+    // Parse request body with flexible parameter names
     const body = await req.json();
-    const projectId = body.projectId;
-    const requestedTypes = body.requestedTypes;
+    console.log("Received request body:", JSON.stringify(body));
+
+    const projectId = body.projectId || body.project_id;
+    const requestedTypes = body.requestedTypes || body.mockupTypes || body.requested_types || body.mockup_types;
 
     if (!projectId || !requestedTypes || !Array.isArray(requestedTypes)) {
-      throw new Error("Missing required parameters: projectId and requestedTypes");
+      console.error("Invalid parameters. Received:", { projectId, requestedTypes, body });
+      throw new Error("Missing required parameters: projectId and requestedTypes (array)");
     }
+
+    console.log("Processing request for project:", projectId, "types:", requestedTypes);
 
     // Create Supabase client
     const authHeader = req.headers.get("Authorization");
@@ -62,6 +67,7 @@ serve(async (req: Request) => {
     });
 
     // 1. Load project data
+    console.log("Loading project data for ID:", projectId);
     const { data: project, error: projectError } = await supabaseClient
       .from("projects")
       .select("*")
@@ -69,8 +75,11 @@ serve(async (req: Request) => {
       .single();
 
     if (projectError) {
+      console.error("Project load error:", projectError);
       throw new Error(`Failed to load project: ${projectError.message}`);
     }
+
+    console.log("Project loaded successfully:", project.name);
 
     // 2. Call Langdock API
     const langdockApiKey = Deno.env.get("LANGDOCK_API_KEY");
@@ -83,7 +92,7 @@ serve(async (req: Request) => {
       throw new Error("LANGDOCK_ASSISTANT_ID not configured");
     }
 
-    console.log("Calling Langdock API...");
+    console.log("Calling Langdock API with assistant:", assistantId);
     const assistantResponse = await fetch("https://api.langdock.com/v1/assistants/runs", {
       method: "POST",
       headers: {
@@ -100,7 +109,8 @@ Projektdaten: ${JSON.stringify(project)}`,
 
     if (!assistantResponse.ok) {
       const errorText = await assistantResponse.text();
-      throw new Error(`Langdock API error: ${errorText}`);
+      console.error("Langdock API error:", errorText);
+      throw new Error(`Langdock API error (${assistantResponse.status}): ${errorText}`);
     }
 
     const assistantData: LangdockResponse = await assistantResponse.json();
@@ -119,7 +129,7 @@ Projektdaten: ${JSON.stringify(project)}`,
           let content = resultItem.content;
 
           // Remove markdown code blocks
-          const jsonMatch = content.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
+          const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```/);
           if (jsonMatch) {
             content = jsonMatch[1];
           }
@@ -134,11 +144,24 @@ Projektdaten: ${JSON.stringify(project)}`,
                 const mockupItem: MockupItem = {
                   type: mockup.type || mockup.item_type || "unknown",
                   url: mockup.url || "",
-                  title: mockup.title || "Mockup",
+                  title: mockup.title || mockup.name || "Mockup",
                   status: mockup.status || "generated",
                 };
 
-                console.log("Adding mockup item:", JSON.stringify(mockupItem));
+                console.log("Adding mockup item from content:", JSON.stringify(mockupItem));
+                mockups.push(mockupItem);
+              }
+            } else if (Array.isArray(parsed)) {
+              // Handle case where content is directly an array
+              for (const mockup of parsed) {
+                const mockupItem: MockupItem = {
+                  type: mockup.type || mockup.item_type || "unknown",
+                  url: mockup.url || "",
+                  title: mockup.title || mockup.name || "Mockup",
+                  status: mockup.status || "generated",
+                };
+
+                console.log("Adding mockup item from array:", JSON.stringify(mockupItem));
                 mockups.push(mockupItem);
               }
             }
@@ -179,6 +202,7 @@ Projektdaten: ${JSON.stringify(project)}`,
           status: "generated",
         };
 
+        console.log("Adding top-level attachment as mockup:", JSON.stringify(mockupItem));
         mockups.push(mockupItem);
       }
     }
@@ -186,10 +210,12 @@ Projektdaten: ${JSON.stringify(project)}`,
     console.log("Final mockups array:", JSON.stringify(mockups));
 
     if (mockups.length === 0) {
-      throw new Error("No mockups generated from Langdock response");
+      console.warn("No mockups generated from Langdock response. Full response:", JSON.stringify(assistantData));
+      throw new Error("No mockups generated from Langdock response. Check function logs for details.");
     }
 
     // 4. Save to database
+    console.log("Saving mockups to database...");
     const { data: savedResult, error: saveError } = await supabaseClient
       .from("mockup_results")
       .insert({
@@ -201,10 +227,11 @@ Projektdaten: ${JSON.stringify(project)}`,
       .single();
 
     if (saveError) {
+      console.error("Database save error:", saveError);
       throw new Error(`Failed to save mockups: ${saveError.message}`);
     }
 
-    console.log("Successfully saved mockups to database");
+    console.log("Successfully saved mockups to database with ID:", savedResult.id);
 
     return new Response(
       JSON.stringify({
@@ -220,6 +247,9 @@ Projektdaten: ${JSON.stringify(project)}`,
     console.error("Error in generate-mockups function:", error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error("Error stack:", errorStack);
 
     return new Response(
       JSON.stringify({
