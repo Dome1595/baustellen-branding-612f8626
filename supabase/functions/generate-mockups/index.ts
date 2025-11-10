@@ -399,56 +399,107 @@ Please generate professional construction site branding mockups using the provid
 
     // Step 5: Parse the response
     let mockups = [];
-    
-    // Langdock Assistant API returns result array
-    const result = assistantData.result || [];
-    console.log('Result array length:', result.length);
-    
-    // Try to extract mockups from the result
-    for (const item of result) {
-      console.log('Processing result item, role:', item.role);
+
+const result = assistantData.result || [];
+console.log('Result array length:', result.length);
+
+for (const item of result) {
+  if (item.content) {
+    for (const contentItem of item.content) {
       
-      if (item.content) {
-        for (const contentItem of item.content) {
-          console.log('Content item type:', contentItem.type);
+      // Case 1: Image as attachment ID or URL
+      if (contentItem.type === 'image' && contentItem.image) {
+        const imageData = contentItem.image;
+        let imageUrl: string | null = null;
+        
+        // Check if it's an attachment ID
+        if (imageData.attachmentId) {
+          // Download from Langdock attachment API
+          const attachmentResponse = await fetch(
+            `https://api.langdock.com/attachment/v1/${imageData.attachmentId}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
+              },
+            }
+          );
           
-          // Check if it's text content with JSON
-          if (contentItem.type === 'text' && contentItem.text) {
-            try {
-              const jsonMatch = contentItem.text.match(/\{[\s\S]*"mockups"[\s\S]*\}/);
-              if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                if (parsed.mockups && Array.isArray(parsed.mockups)) {
-                  mockups = parsed.mockups;
-                  console.log('Found mockups in text content:', mockups.length);
-                  break;
+          if (attachmentResponse.ok) {
+            const blob = await attachmentResponse.blob();
+            const arrayBuffer = await blob.arrayBuffer();
+            const base64 = btoa(
+              new Uint8Array(arrayBuffer).reduce(
+                (data, byte) => data + String.fromCharCode(byte),
+                ''
+              )
+            );
+            imageUrl = `data:image/png;base64,${base64}`;
+          }
+        } 
+        // Check if it's already a data URL
+        else if (typeof imageData === 'string' && imageData.startsWith('data:')) {
+          imageUrl = imageData;
+        }
+        // Check if it's a regular URL
+        else if (typeof imageData === 'string' && imageData.startsWith('http')) {
+          const imgResponse = await fetch(imageData);
+          if (imgResponse.ok) {
+            const blob = await imgResponse.blob();
+            const arrayBuffer = await blob.arrayBuffer();
+            const base64 = btoa(
+              new Uint8Array(arrayBuffer).reduce(
+                (data, byte) => data + String.fromCharCode(byte),
+                ''
+              )
+            );
+            imageUrl = `data:image/png;base64,${base64}`;
+          }
+        }
+        
+        if (imageUrl) {
+          // Determine mockup type from context
+          // This is a simplified example - you'll need to track which type each image is
+          mockups.push({
+            type: 'vehicle', // You need logic to determine the actual type
+            url: imageUrl,
+            title: 'Fahrzeugbeschriftung'
+          });
+        }
+      }
+      
+      // Case 2: JSON text with mockup data
+      if (contentItem.type === 'text' && contentItem.text) {
+        try {
+          const jsonMatch = contentItem.text.match(/\{[\s\S]*"mockups"[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.mockups && Array.isArray(parsed.mockups)) {
+              // Process each mockup URL
+              for (const mockup of parsed.mockups) {
+                if (mockup.url && !mockup.url.startsWith('data:')) {
+                  // Download and convert to Base64
+                  const imgResponse = await fetch(mockup.url);
+                  if (imgResponse.ok) {
+                    const blob = await imgResponse.blob();
+                    const arrayBuffer = await blob.arrayBuffer();
+                    const base64 = btoa(
+                      new Uint8Array(arrayBuffer).reduce(
+                        (data, byte) => data + String.fromCharCode(byte),
+                        ''
+                      )
+                    );
+                    mockup.url = `data:image/png;base64,${base64}`;
+                  }
                 }
               }
-            } catch (parseError) {
-              console.error('Error parsing mockups from text:', parseError);
+              mockups = parsed.mockups;
+              break;
             }
           }
-          
-          // Check if it's image content
-          if (contentItem.type === 'image' && contentItem.image) {
-            const imageUrl = contentItem.image.url || contentItem.image;
-            console.log('Found image:', imageUrl.substring(0, 100));
-          }
+        } catch (parseError) {
+          console.error('Error parsing mockups from text:', parseError);
         }
       }
     }
-
-    console.log('Generated mockups:', mockups.length);
-
-    return new Response(JSON.stringify({ mockups }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    console.error('Error in generate-mockups:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
   }
-});
+}
