@@ -244,15 +244,10 @@ serve(async (req) => {
   try {
     const { projectData } = await req.json();
     const LANGDOCK_API_KEY = Deno.env.get('LANGDOCK_API_KEY');
-    const LANGDOCK_ASSISTANT_ID = Deno.env.get('LANGDOCK_ASSISTANT_ID_MOCKUPS');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 
     if (!LANGDOCK_API_KEY) {
       throw new Error('LANGDOCK_API_KEY not configured');
-    }
-
-    if (!LANGDOCK_ASSISTANT_ID) {
-      throw new Error('LANGDOCK_ASSISTANT_ID_MOCKUPS not configured');
     }
 
     if (!SUPABASE_URL) {
@@ -363,30 +358,31 @@ Please generate professional construction site branding mockups using the provid
     // Step 4: Call Langdock Assistant API
     console.log('Calling Langdock Assistant API...');
     
-    const attachments = [];
+    const attachmentIds = [];
     if (logoAttachmentId) {
-      attachments.push({ attachment_id: logoAttachmentId });
+      attachmentIds.push(logoAttachmentId);
     }
     Object.values(templateAttachments).forEach(id => {
-      attachments.push({ attachment_id: id });
+      attachmentIds.push(id);
     });
 
-    const assistantResponse = await fetch(`https://api.langdock.com/v1/assistants/${LANGDOCK_ASSISTANT_ID}/chat/completions`, {
+    const assistantResponse = await fetch('https://api.langdock.com/assistant/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LANGDOCK_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        assistant: {
+          name: 'Mockup Design Agent',
+          instructions: SYSTEM_PROMPT,
+          model: 'gemini-2.0-flash-exp',
+          attachmentIds: attachmentIds
+        },
         messages: [
           {
-            role: 'system',
-            content: SYSTEM_PROMPT
-          },
-          {
             role: 'user',
-            content: userPrompt,
-            attachments: attachments
+            content: userPrompt
           }
         ]
       }),
