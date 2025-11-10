@@ -13,39 +13,77 @@ interface MockupItem {
   status?: string;
 }
 
-serve(async (req) => {
+interface LangdockAttachment {
+  type?: string;
+  item_type?: string;
+  url?: string;
+  content?: string;
+  title?: string;
+  name?: string;
+}
+
+interface LangdockResultItem {
+  role: string;
+  content?: string;
+  attachments?: LangdockAttachment[];
+}
+
+interface LangdockResponse {
+  result?: LangdockResultItem[];
+  attachments?: LangdockAttachment[];
+}
+
+serve(async (req: Request) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { projectId, requestedTypes } = await req.json();
+    // Parse request body
+    const body = await req.json();
+    const projectId = body.projectId;
+    const requestedTypes = body.requestedTypes;
 
     if (!projectId || !requestedTypes || !Array.isArray(requestedTypes)) {
-      throw new Error("Missing required parameters");
+      throw new Error("Missing required parameters: projectId and requestedTypes");
+    }
+
+    // Create Supabase client
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      throw new Error("Missing Authorization header");
     }
 
     const supabaseClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
       global: {
-        headers: { Authorization: req.headers.get("Authorization")! },
+        headers: { Authorization: authHeader },
       },
     });
 
-    // 1. Projekt-Daten laden
+    // 1. Load project data
     const { data: project, error: projectError } = await supabaseClient
       .from("projects")
       .select("*")
       .eq("id", projectId)
       .single();
 
-    if (projectError) throw projectError;
+    if (projectError) {
+      throw new Error(`Failed to load project: ${projectError.message}`);
+    }
 
-    // 2. Langdock API aufrufen
+    // 2. Call Langdock API
     const langdockApiKey = Deno.env.get("LANGDOCK_API_KEY");
     if (!langdockApiKey) {
       throw new Error("LANGDOCK_API_KEY not configured");
     }
 
+    const assistantId = Deno.env.get("LANGDOCK_ASSISTANT_ID");
+    if (!assistantId) {
+      throw new Error("LANGDOCK_ASSISTANT_ID not configured");
+    }
+
+    console.log("Calling Langdock API...");
     const assistantResponse = await fetch("https://api.langdock.com/v1/assistants/runs", {
       method: "POST",
       headers: {
@@ -53,7 +91,7 @@ serve(async (req) => {
         Authorization: `Bearer ${langdockApiKey}`,
       },
       body: JSON.stringify({
-        assistant_id: Deno.env.get("LANGDOCK_ASSISTANT_ID"),
+        assistant_id: assistantId,
         message: `Erstelle Mockups fÃ¼r folgende Typen: ${requestedTypes.join(", ")}. 
 Projektdaten: ${JSON.stringify(project)}`,
         stream: false,
@@ -65,21 +103,22 @@ Projektdaten: ${JSON.stringify(project)}`,
       throw new Error(`Langdock API error: ${errorText}`);
     }
 
-    const assistantData = await assistantResponse.json();
+    const assistantData: LangdockResponse = await assistantResponse.json();
     console.log("Received response from Langdock:", JSON.stringify(assistantData));
 
-    // 3. KORREKTES Parsen der Response
+    // 3. Parse response and extract mockups
     const mockups: MockupItem[] = [];
 
+    // Process result array
     if (assistantData.result && Array.isArray(assistantData.result)) {
       for (const resultItem of assistantData.result) {
         console.log("Processing result item, role:", resultItem.role);
 
+        // Process content (may contain JSON)
         if (resultItem.role === "assistant" && resultItem.content) {
-          // Content kann JSON-Code-Block enthalten
           let content = resultItem.content;
 
-          // Entferne Markdown Code-Blocks
+          // Remove markdown code blocks
           const jsonMatch = content.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
           if (jsonMatch) {
             content = jsonMatch[1];
@@ -89,10 +128,9 @@ Projektdaten: ${JSON.stringify(project)}`,
             const parsed = JSON.parse(content);
             console.log("Parsed content:", JSON.stringify(parsed));
 
-            // PrÃ¼fe ob mockups Array vorhanden ist
+            // Check if mockups array exists
             if (parsed.mockups && Array.isArray(parsed.mockups)) {
               for (const mockup of parsed.mockups) {
-                // âœ… WICHTIG: Stelle sicher, dass type vorhanden ist
                 const mockupItem: MockupItem = {
                   type: mockup.type || mockup.item_type || "unknown",
                   url: mockup.url || "",
@@ -110,12 +148,11 @@ Projektdaten: ${JSON.stringify(project)}`,
           }
         }
 
-        // PrÃ¼fe auch attachments
+        // Process attachments in result item
         if (resultItem.attachments && Array.isArray(resultItem.attachments)) {
           for (const attachment of resultItem.attachments) {
             console.log("Processing attachment:", JSON.stringify(attachment));
 
-            // âœ… WICHTIG: Extrahiere type korrekt
             const mockupItem: MockupItem = {
               type: attachment.type || attachment.item_type || "unknown",
               url: attachment.url || attachment.content || "",
@@ -130,7 +167,7 @@ Projektdaten: ${JSON.stringify(project)}`,
       }
     }
 
-    // PrÃ¼fe auch top-level attachments
+    // Process top-level attachments
     if (assistantData.attachments && Array.isArray(assistantData.attachments)) {
       for (const attachment of assistantData.attachments) {
         console.log("Processing top-level attachment:", JSON.stringify(attachment));
@@ -152,7 +189,7 @@ Projektdaten: ${JSON.stringify(project)}`,
       throw new Error("No mockups generated from Langdock response");
     }
 
-    // 4. In Datenbank speichern
+    // 4. Save to database
     const { data: savedResult, error: saveError } = await supabaseClient
       .from("mockup_results")
       .insert({
@@ -163,16 +200,36 @@ Projektdaten: ${JSON.stringify(project)}`,
       .select()
       .single();
 
-    if (saveError) throw saveError;
+    if (saveError) {
+      throw new Error(`Failed to save mockups: ${saveError.message}`);
+    }
 
-    return new Response(JSON.stringify({ success: true, mockups }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.log("Successfully saved mockups to database");
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        mockups: mockups,
+        result_id: savedResult.id,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (error) {
     console.error("Error in generate-mockups function:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    return new Response(
+      JSON.stringify({
+        error: errorMessage,
+        success: false,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
