@@ -15,7 +15,7 @@ const Index = () => {
               Ihr individuelles<br />
               <span className="text-accent">Baustellen-Branding-Paket</span>
             </h1>
-            <p className="mb-8 text-lg text-primary-foreground/90 md:text-xl">Professionell, markenstark und startklar in wenigen Sekunden</p>
+            <p className="mb-8 text-lg text-primary-foreground/90 md:text-xl">Professionell, markentreu und startklar in wenigen Sekunden</p>
             <Button size="lg" variant="secondary" className="group h-14 px-8 text-lg font-semibold" onClick={() => navigate('/wizard')}>
               Projekt starten
               <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
