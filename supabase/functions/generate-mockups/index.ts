@@ -92,7 +92,7 @@ serve(async (req: Request) => {
       },
       body: JSON.stringify({
         assistant_id: assistantId,
-        message: `Erstelle Mockups fÃ¼r folgende Typen: ${requestedTypes.join(", ")}. 
+        message: `Erstelle Mockups für folgende Typen: ${requestedTypes.join(", ")}. 
 Projektdaten: ${JSON.stringify(project)}`,
         stream: false,
       }),
