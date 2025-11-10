@@ -173,39 +173,106 @@ Generate mockups using the provided logo and templates. Return ONLY valid JSON w
 
     const assistantData = await assistantResponse.json();
     console.log("✓ Langdock response received");
-    console.log("Raw response structure:", JSON.stringify(assistantData, null, 2).substring(0, 1000));
 
-    // Step 5: KORRIGIERTE PARSING-LOGIK
+    // Step 5: ROBUSTE PARSING-LOGIK mit vollständigem Logging
     let mockups: Array<{ type: string; url: string; title: string }> = [];
 
     const result = assistantData.result || [];
-    console.log(`Processing ${result.length} result items...`);
+    console.log("=== RESPONSE ANALYSIS ===");
+    console.log("Result array length:", result.length);
+    console.log("Full assistantData structure:", JSON.stringify(assistantData, null, 2));
 
-    // Durchsuche alle Content-Items nach JSON oder Bildern
+    // Durchsuche alle Content-Items
     for (let i = 0; i < result.length; i++) {
       const item = result[i];
-      if (!item.content) continue;
+      console.log(`\nProcessing result item ${i}:`, JSON.stringify(item, null, 2));
+
+      if (!item.content || !Array.isArray(item.content)) {
+        console.log(`Item ${i} has no content array, skipping`);
+        continue;
+      }
 
       for (let j = 0; j < item.content.length; j++) {
         const contentItem = item.content[j];
+        console.log(`Content item ${j}:`, JSON.stringify(contentItem, null, 2));
+        console.log(`Content item type: ${contentItem?.type}`);
 
-        // Fall 1: JSON-Text mit Mockup-Daten
-        if (contentItem.type === "text" && contentItem.text) {
+        // STRATEGIE 1: Suche nach JSON im gesamten Content-Item
+        const contentStr = JSON.stringify(contentItem);
+        if (contentStr.includes('"mockups"') || contentStr.includes("mockups")) {
+          console.log('Found "mockups" keyword in content item, attempting to extract JSON...');
+
           try {
-            // Suche nach JSON-Block
-            const jsonMatch = contentItem.text.match(/\{[\s\S]*?"mockups"[\s\S]*?\}/);
-            if (jsonMatch) {
-              console.log("Found JSON in text, parsing...");
-              const parsed = JSON.parse(jsonMatch[0]);
+            // Versuche verschiedene Wege, JSON zu extrahieren
+            let jsonData = null;
 
-              if (parsed.mockups && Array.isArray(parsed.mockups)) {
-                console.log(`Found ${parsed.mockups.length} mockups in JSON`);
+            // Weg 1: contentItem ist direkt das JSON
+            if (contentItem.mockups && Array.isArray(contentItem.mockups)) {
+              jsonData = contentItem;
+              console.log("✓ Found mockups directly in contentItem");
+            }
 
-                // Konvertiere URLs die keine Base64 sind
-                for (const mockup of parsed.mockups) {
-                  if (mockup.url && !mockup.url.startsWith("data:")) {
-                    console.log(`Converting URL to Base64 for ${mockup.type}...`);
-                    try {
+            // Weg 2: contentItem.text enthält JSON
+            else if (contentItem.text) {
+              const jsonMatch = contentItem.text.match(/\{[\s\S]*?"mockups"[\s\S]*?\}/);
+              if (jsonMatch) {
+                jsonData = JSON.parse(jsonMatch[0]);
+                console.log("✓ Found mockups in contentItem.text");
+              }
+            }
+
+            // Weg 3: contentItem.content ist ein String mit JSON
+            else if (typeof contentItem.content === "string") {
+              const jsonMatch = contentItem.content.match(/\{[\s\S]*?"mockups"[\s\S]*?\}/);
+              if (jsonMatch) {
+                jsonData = JSON.parse(jsonMatch[0]);
+                console.log("✓ Found mockups in contentItem.content string");
+              }
+            }
+
+            // Weg 4: Durchsuche alle String-Properties
+            else {
+              for (const [key, value] of Object.entries(contentItem)) {
+                if (typeof value === "string" && value.includes("mockups")) {
+                  const jsonMatch = value.match(/\{[\s\S]*?"mockups"[\s\S]*?\}/);
+                  if (jsonMatch) {
+                    jsonData = JSON.parse(jsonMatch[0]);
+                    console.log(`✓ Found mockups in contentItem.${key}`);
+                    break;
+                  }
+                }
+              }
+            }
+
+            // Verarbeite gefundene Mockups
+            if (jsonData?.mockups && Array.isArray(jsonData.mockups)) {
+              console.log(`Found ${jsonData.mockups.length} mockups in JSON`);
+
+              for (const mockup of jsonData.mockups) {
+                console.log(`Processing mockup: type=${mockup.type}, url length=${mockup.url?.length}`);
+
+                // Konvertiere URLs zu Base64 wenn nötig
+                if (mockup.url && !mockup.url.startsWith("data:")) {
+                  console.log(`Converting URL to Base64 for ${mockup.type}...`);
+                  try {
+                    // Prüfe ob es eine Langdock Attachment ID ist
+                    if (mockup.url.match(/^[a-f0-9-]{36}$/i)) {
+                      // Es ist eine Attachment ID
+                      const attachmentResponse = await fetch(`https://api.langdock.com/attachment/v1/${mockup.url}`, {
+                        headers: { Authorization: `Bearer ${LANGDOCK_API_KEY}` },
+                      });
+
+                      if (attachmentResponse.ok) {
+                        const blob = await attachmentResponse.blob();
+                        const arrayBuffer = await blob.arrayBuffer();
+                        const base64 = btoa(
+                          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
+                        );
+                        mockup.url = `data:image/png;base64,${base64}`;
+                        console.log(`✓ Converted attachment ${mockup.type} to Base64`);
+                      }
+                    } else {
+                      // Es ist eine reguläre URL
                       const imgResponse = await fetch(mockup.url);
                       if (imgResponse.ok) {
                         const blob = await imgResponse.blob();
@@ -214,95 +281,180 @@ Generate mockups using the provided logo and templates. Return ONLY valid JSON w
                           new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
                         );
                         mockup.url = `data:image/png;base64,${base64}`;
-                        console.log(`✓ Converted ${mockup.type} to Base64`);
+                        console.log(`✓ Converted URL ${mockup.type} to Base64`);
                       }
-                    } catch (convError) {
-                      console.error(`✗ Failed to convert ${mockup.type}:`, convError);
                     }
+                  } catch (convError) {
+                    console.error(`✗ Failed to convert ${mockup.type}:`, convError);
                   }
                 }
-
-                mockups = parsed.mockups;
-                console.log("✓ Successfully parsed mockups from JSON");
-                break; // JSON gefunden, fertig
               }
+
+              mockups = jsonData.mockups;
+              console.log("✓ Successfully extracted mockups from JSON");
+              break; // Mockups gefunden, fertig
             }
           } catch (parseError) {
             console.error("✗ JSON parse error:", parseError);
           }
         }
 
-        // Fall 2: Bild als Attachment (nur wenn noch keine JSON-Mockups gefunden)
-        if (mockups.length === 0 && contentItem.type === "image" && contentItem.image) {
-          console.log(`Processing image attachment ${j}...`);
-          const imageData = contentItem.image;
-          let imageUrl: string | null = null;
-          let mockupType = "vehicle"; // Default
-          let mockupTitle = "Fahrzeugbeschriftung";
+        // STRATEGIE 2: Suche nach Bildern als Attachments (nur wenn keine JSON-Mockups gefunden)
+        if (mockups.length === 0) {
+          // Prüfe auf verschiedene Bild-Strukturen
+          let imageData = null;
 
-          // Bestimme Typ aus Index (sehr einfache Logik - verbessern wenn nötig)
-          const mockupIndex = mockups.length;
-          if (mockupIndex === 0 && requestedTypes.includes("vehicle")) {
-            mockupType = "vehicle";
-            mockupTitle = "Fahrzeugbeschriftung";
-          } else if (mockupIndex === 1 && requestedTypes.includes("scaffold")) {
-            mockupType = "scaffold";
-            mockupTitle = "Gerüstplane";
-          } else if (mockupIndex === 2 && requestedTypes.includes("fence")) {
-            mockupType = "fence";
-            mockupTitle = "Bauzaunbanner";
+          if (contentItem.image) {
+            imageData = contentItem.image;
+            console.log("Found image in contentItem.image");
+          } else if (contentItem.type === "image_url" && contentItem.image_url) {
+            imageData = contentItem.image_url;
+            console.log("Found image in contentItem.image_url");
+          } else if (contentItem.type === "file" && contentItem.file) {
+            imageData = contentItem.file;
+            console.log("Found image in contentItem.file");
           }
 
-          // Download attachment
-          if (imageData.attachmentId) {
-            try {
-              const attachmentResponse = await fetch(
-                `https://api.langdock.com/attachment/v1/${imageData.attachmentId}`,
-                { headers: { Authorization: `Bearer ${LANGDOCK_API_KEY}` } },
-              );
+          if (imageData) {
+            console.log("Processing image data:", JSON.stringify(imageData, null, 2));
+            let imageUrl: string | null = null;
 
-              if (attachmentResponse.ok) {
-                const blob = await attachmentResponse.blob();
-                const arrayBuffer = await blob.arrayBuffer();
-                const base64 = btoa(
-                  new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
-                );
-                imageUrl = `data:image/png;base64,${base64}`;
-                console.log(`✓ Converted attachment to Base64 (${mockupType})`);
+            // Bestimme Mockup-Typ basierend auf Reihenfolge
+            const mockupIndex = mockups.length;
+            let mockupType = "vehicle";
+            let mockupTitle = "Fahrzeugbeschriftung";
+
+            if (requestedTypes[mockupIndex]) {
+              const typeMap: Record<string, { type: string; title: string }> = {
+                vehicle: { type: "vehicle", title: "Fahrzeugbeschriftung" },
+                scaffold: { type: "scaffold", title: "Gerüstplane" },
+                fence: { type: "fence", title: "Bauzaunbanner" },
+              };
+              const mapped = typeMap[requestedTypes[mockupIndex]];
+              if (mapped) {
+                mockupType = mapped.type;
+                mockupTitle = mapped.title;
               }
-            } catch (attachError) {
-              console.error("✗ Attachment download error:", attachError);
             }
-          } else if (typeof imageData === "string" && imageData.startsWith("data:")) {
-            imageUrl = imageData;
-            console.log(`✓ Image already in Base64 format (${mockupType})`);
-          }
 
-          if (imageUrl) {
-            mockups.push({ type: mockupType, url: imageUrl, title: mockupTitle });
+            // Extrahiere Bild-URL
+            if (typeof imageData === "string") {
+              if (imageData.startsWith("data:")) {
+                imageUrl = imageData;
+                console.log("Image is already Base64");
+              } else if (imageData.match(/^[a-f0-9-]{36}$/i)) {
+                // Attachment ID
+                try {
+                  const attachmentResponse = await fetch(`https://api.langdock.com/attachment/v1/${imageData}`, {
+                    headers: { Authorization: `Bearer ${LANGDOCK_API_KEY}` },
+                  });
+
+                  if (attachmentResponse.ok) {
+                    const blob = await attachmentResponse.blob();
+                    const arrayBuffer = await blob.arrayBuffer();
+                    const base64 = btoa(
+                      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
+                    );
+                    imageUrl = `data:image/png;base64,${base64}`;
+                    console.log("✓ Downloaded attachment as Base64");
+                  }
+                } catch (err) {
+                  console.error("✗ Attachment download failed:", err);
+                }
+              } else {
+                // Regular URL
+                try {
+                  const imgResponse = await fetch(imageData);
+                  if (imgResponse.ok) {
+                    const blob = await imgResponse.blob();
+                    const arrayBuffer = await blob.arrayBuffer();
+                    const base64 = btoa(
+                      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
+                    );
+                    imageUrl = `data:image/png;base64,${base64}`;
+                    console.log("✓ Downloaded URL as Base64");
+                  }
+                } catch (err) {
+                  console.error("✗ URL download failed:", err);
+                }
+              }
+            } else if (imageData.attachmentId) {
+              // Attachment ID als Object-Property
+              try {
+                const attachmentResponse = await fetch(
+                  `https://api.langdock.com/attachment/v1/${imageData.attachmentId}`,
+                  { headers: { Authorization: `Bearer ${LANGDOCK_API_KEY}` } },
+                );
+
+                if (attachmentResponse.ok) {
+                  const blob = await attachmentResponse.blob();
+                  const arrayBuffer = await blob.arrayBuffer();
+                  const base64 = btoa(
+                    new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
+                  );
+                  imageUrl = `data:image/png;base64,${base64}`;
+                  console.log("✓ Downloaded attachment (from attachmentId) as Base64");
+                }
+              } catch (err) {
+                console.error("✗ Attachment download failed:", err);
+              }
+            } else if (imageData.url) {
+              // URL als Object-Property
+              if (imageData.url.startsWith("data:")) {
+                imageUrl = imageData.url;
+              } else {
+                try {
+                  const imgResponse = await fetch(imageData.url);
+                  if (imgResponse.ok) {
+                    const blob = await imgResponse.blob();
+                    const arrayBuffer = await blob.arrayBuffer();
+                    const base64 = btoa(
+                      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
+                    );
+                    imageUrl = `data:image/png;base64,${base64}`;
+                    console.log("✓ Downloaded URL (from url property) as Base64");
+                  }
+                } catch (err) {
+                  console.error("✗ URL download failed:", err);
+                }
+              }
+            }
+
+            if (imageUrl) {
+              mockups.push({ type: mockupType, url: imageUrl, title: mockupTitle });
+              console.log(`✓ Added ${mockupType} mockup (${mockups.length} total)`);
+            }
           }
         }
       }
 
-      // Wenn JSON-Mockups gefunden wurden, keine weiteren Items verarbeiten
-      if (mockups.length > 0 && result[i].content.some((c) => c.type === "text")) {
+      // Wenn Mockups gefunden wurden, stoppe die Suche
+      if (mockups.length > 0) {
+        console.log(`Found ${mockups.length} mockups, stopping search`);
         break;
       }
     }
 
     // VALIDIERUNG
-    console.log("=== FINAL VALIDATION ===");
+    console.log("\n=== FINAL VALIDATION ===");
     console.log("Total mockups generated:", mockups.length);
 
     if (mockups.length === 0) {
       console.error("✗ NO MOCKUPS GENERATED!");
-      console.error("Full Langdock response:", JSON.stringify(assistantData, null, 2));
+      console.error("This usually means:");
+      console.error("1. Langdock did not return images in the expected format");
+      console.error("2. The AI model did not generate mockups");
+      console.error("3. The response structure is different than expected");
+      console.error("\nFull Response:", JSON.stringify(assistantData, null, 2));
 
-      // Fallback: Leere Mockups zurückgeben statt Error
       return new Response(
         JSON.stringify({
           mockups: [],
-          error: "No mockups were generated. Please check the logs.",
+          error: "No mockups were generated. Check Edge Function logs for details.",
+          debug: {
+            resultLength: result.length,
+            rawResponse: assistantData,
+          },
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -319,7 +471,7 @@ Generate mockups using the provided logo and templates. Return ONLY valid JSON w
       });
     });
 
-    console.log("=== MOCKUP GENERATION COMPLETE ===");
+    console.log("=== MOCKUP GENERATION COMPLETE ===\n");
 
     return new Response(JSON.stringify({ mockups }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
