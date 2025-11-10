@@ -376,7 +376,7 @@ Please generate professional construction site branding mockups using the provid
         assistant: {
           name: 'Mockup Design Agent',
           instructions: SYSTEM_PROMPT,
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-2.5-flash',
           attachmentIds: attachmentIds
         },
         messages: [
